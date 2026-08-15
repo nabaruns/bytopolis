@@ -14,7 +14,7 @@ du -h -d1 ~/some/folder
 - See the **total size** plus every immediate child, sorted largest-first, with a proportion bar.
 - Sizes come from `du -k -d1 <path>` and are formatted to human units (KB/MB/GB) in-app, so sorting stays accurate.
 - **Permission-denied paths** (e.g. system folders): the app shows a banner and a one-click **"As Admin"** rescan that triggers the standard macOS admin-password prompt.
-- **Delete**: the trash button asks for confirmation (showing the full path + size), then runs `rm -rf`. There's an **admin** variant for protected paths, and a hard guardrail that refuses `/`, your home folder, and top-level system directories.
+- **Delete**: the trash button asks for confirmation (showing the full path + size), then lets you **Move to Trash** (reversible, the safe default) or **Delete Permanently** with `rm -rf`. There's an **admin** variant of the permanent delete for protected paths, and a hard guardrail that refuses `/`, your home folder, and top-level system directories.
 
 ## Requirements
 
@@ -45,4 +45,4 @@ DiskSize/
 
 ## Safety notes
 
-`rm -rf` is **permanent** — deleted items do **not** go to the Trash. The confirmation dialog always names the exact path and its size before anything is removed.
+**Move to Trash** is reversible — items go to the Finder Trash and can be restored. **Delete Permanently** (`rm -rf`) does **not** use the Trash and cannot be undone. Either way, the confirmation dialog always names the exact path and its size before anything is removed.

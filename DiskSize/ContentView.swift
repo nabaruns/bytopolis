@@ -67,15 +67,21 @@ final class ScanModel: ObservableObject {
         }
     }
 
-    func delete(_ item: DiskItem, asAdmin: Bool) {
+    enum DeleteMode {
+        case trash          // reversible, Finder Trash
+        case permanent      // rm -rf
+        case admin          // rm -rf with administrator privileges
+    }
+
+    func delete(_ item: DiskItem, mode: DeleteMode) {
         errorMessage = nil
         Task {
             let outcome: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
                 do {
-                    if asAdmin {
-                        try Deleter.removeAsAdmin(path: item.path)
-                    } else {
-                        try Deleter.remove(path: item.path)
+                    switch mode {
+                    case .trash:     try Deleter.moveToTrash(path: item.path)
+                    case .permanent: try Deleter.remove(path: item.path)
+                    case .admin:     try Deleter.removeAsAdmin(path: item.path)
                     }
                     return .success(())
                 } catch {
@@ -105,7 +111,7 @@ struct ContentView: View {
             content
         }
         .confirmationDialog(
-            "Permanently delete this item?",
+            "Delete this item?",
             isPresented: Binding(
                 get: { pendingDelete != nil },
                 set: { if !$0 { pendingDelete = nil } }
@@ -113,19 +119,23 @@ struct ContentView: View {
             titleVisibility: .visible
         ) {
             if let item = pendingDelete {
-                Button("Delete \(item.formattedSize) — rm -rf", role: .destructive) {
-                    model.delete(item, asAdmin: false)
+                Button("Move to Trash") {
+                    model.delete(item, mode: .trash)
                     pendingDelete = nil
                 }
-                Button("Delete as Administrator", role: .destructive) {
-                    model.delete(item, asAdmin: true)
+                Button("Delete Permanently \(item.formattedSize) — rm -rf", role: .destructive) {
+                    model.delete(item, mode: .permanent)
+                    pendingDelete = nil
+                }
+                Button("Delete Permanently as Administrator", role: .destructive) {
+                    model.delete(item, mode: .admin)
                     pendingDelete = nil
                 }
                 Button("Cancel", role: .cancel) { pendingDelete = nil }
             }
         } message: {
             if let item = pendingDelete {
-                Text("\(item.path)\n\nThis runs rm -rf and cannot be undone.")
+                Text("\(item.path)\n\nMove to Trash is reversible. Deleting permanently runs rm -rf and cannot be undone.")
             }
         }
     }

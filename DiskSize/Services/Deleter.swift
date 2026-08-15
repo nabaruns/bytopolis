@@ -14,9 +14,22 @@ enum DeleteError: Error, LocalizedError {
     }
 }
 
-/// Permanent `rm -rf`. User path first; falls back to admin escalation on
-/// permission errors. Includes a hard guardrail against catastrophic targets.
+/// Deletion actions. `moveToTrash` is the safe, reversible default; `remove`
+/// is a permanent `rm -rf` (with an admin fallback). Both honor a hard
+/// guardrail against catastrophic targets.
 enum Deleter {
+
+    /// Move to the Finder Trash (recoverable). Uses the native FileManager API —
+    /// no shell, and items can be restored from the Trash.
+    static func moveToTrash(path: String) throws {
+        try guardTarget(path)
+        let url = URL(fileURLWithPath: path)
+        do {
+            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        } catch {
+            throw DeleteError.failed(error.localizedDescription)
+        }
+    }
 
     /// Paths we refuse to `rm -rf` outright, regardless of confirmation.
     private static func guardTarget(_ path: String) throws {
