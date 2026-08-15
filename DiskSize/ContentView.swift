@@ -183,29 +183,36 @@ final class ScanModel: ObservableObject {
 
         var isDir: ObjCBool = false
         fm.fileExists(atPath: std, isDirectory: &isDir)
+        let totalVals = try? dirURL.resourceValues(forKeys: Self.dateKeys)
 
         total = DiskItem(url: dirURL,
                          byteSize: idx.dirSize(std) ?? 0,
                          isDirectory: isDir.boolValue,
-                         sizeKnown: idx.dirSize(std) != nil)
+                         sizeKnown: idx.dirSize(std) != nil,
+                         modified: totalVals?.contentModificationDate,
+                         created: totalVals?.creationDate)
 
         var items: [DiskItem] = []
         if let entries = try? fm.contentsOfDirectory(
             at: dirURL,
-            includingPropertiesForKeys: [.isDirectoryKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey],
+            includingPropertiesForKeys: Array(Self.rowKeys),
             options: [.skipsSubdirectoryDescendants]
         ) {
             for url in entries {
-                let vals = try? url.resourceValues(forKeys: [.isDirectoryKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey])
+                let vals = try? url.resourceValues(forKeys: Self.rowKeys)
                 let isDirectory = vals?.isDirectory ?? false
+                let modified = vals?.contentModificationDate
+                let created = vals?.creationDate
                 if isDirectory {
                     let size = idx.dirSize(url.path)
                     items.append(DiskItem(url: url, byteSize: size ?? 0,
-                                          isDirectory: true, sizeKnown: size != nil))
+                                          isDirectory: true, sizeKnown: size != nil,
+                                          modified: modified, created: created))
                 } else {
                     let bytes = vals?.totalFileAllocatedSize ?? vals?.fileAllocatedSize ?? 0
                     items.append(DiskItem(url: url, byteSize: Int64(bytes),
-                                          isDirectory: false, sizeKnown: true))
+                                          isDirectory: false, sizeKnown: true,
+                                          modified: modified, created: created))
                 }
             }
         }
@@ -224,6 +231,13 @@ final class ScanModel: ObservableObject {
         return mtime > date
     }
 
+    /// Resource keys fetched per row (sizes + dates) and just dates for the header.
+    private static let rowKeys: Set<URLResourceKey> = [
+        .isDirectoryKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey,
+        .contentModificationDateKey, .creationDateKey
+    ]
+    private static let dateKeys: Set<URLResourceKey> = [.contentModificationDateKey, .creationDateKey]
+
     /// Fast, best-effort immediate children via FileManager (no sizes yet).
     private static func quickList(path: String) -> [DiskItem] {
         let fm = FileManager.default
@@ -232,13 +246,15 @@ final class ScanModel: ObservableObject {
         let dir = URL(fileURLWithPath: path)
         guard let entries = try? fm.contentsOfDirectory(
             at: dir,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: Array(rowKeys),
             options: [.skipsSubdirectoryDescendants]   // includes hidden files, like du
         ) else { return [] }
 
         return entries.map { url in
-            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-            return DiskItem(url: url, byteSize: 0, isDirectory: isDirectory, sizeKnown: false)
+            let vals = try? url.resourceValues(forKeys: rowKeys)
+            return DiskItem(url: url, byteSize: 0,
+                            isDirectory: vals?.isDirectory ?? false, sizeKnown: false,
+                            modified: vals?.contentModificationDate, created: vals?.creationDate)
         }
     }
 
@@ -444,7 +460,22 @@ struct ContentView: View {
                         }
                     }
                 }
-                .width(min: 140, ideal: 180)
+                .width(min: 130, ideal: 170)
+
+                TableColumn("Kind", value: \.kind) { item in
+                    Text(item.kind).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .width(min: 70, ideal: 90)
+
+                TableColumn("Modified", value: \.modifiedValue) { item in
+                    Text(item.modifiedText).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .width(min: 120, ideal: 160)
+
+                TableColumn("Created", value: \.createdValue) { item in
+                    Text(item.createdText).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .width(min: 120, ideal: 160)
 
                 TableColumn("") { item in
                     Button(role: .destructive) {

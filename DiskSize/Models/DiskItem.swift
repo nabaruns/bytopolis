@@ -10,17 +10,22 @@ struct DiskItem: Identifiable, Hashable {
     let byteSize: Int64
     let isDirectory: Bool
     let sizeKnown: Bool
+    let modified: Date?
+    let created: Date?
 
     /// Path is a stable identity, so selection survives the phase-1 → phase-2 swap.
     var id: String { url.path }
     var name: String { url.lastPathComponent }
     var path: String { url.path }
 
-    init(url: URL, byteSize: Int64, isDirectory: Bool, sizeKnown: Bool = true) {
+    init(url: URL, byteSize: Int64, isDirectory: Bool, sizeKnown: Bool = true,
+         modified: Date? = nil, created: Date? = nil) {
         self.url = url
         self.byteSize = byteSize
         self.isDirectory = isDirectory
         self.sizeKnown = sizeKnown
+        self.modified = modified
+        self.created = created
     }
 
     /// Human-readable size, e.g. "1.2 GB" — the `-h` style, formatted in-app.
@@ -28,5 +33,23 @@ struct DiskItem: Identifiable, Hashable {
     var formattedSize: String {
         guard sizeKnown else { return "—" }
         return ByteCountFormatter.string(fromByteCount: byteSize, countStyle: .file)
+    }
+
+    var kind: String {
+        if isDirectory { return "Folder" }
+        let ext = url.pathExtension
+        return ext.isEmpty ? "File" : ext.lowercased() + " file"
+    }
+
+    // Sortable keys (Optional isn't Comparable, so fall back to distantPast).
+    var modifiedValue: Date { modified ?? .distantPast }
+    var createdValue: Date { created ?? .distantPast }
+
+    var modifiedText: String { Self.format(modified) }
+    var createdText: String { Self.format(created) }
+
+    private static func format(_ date: Date?) -> String {
+        guard let date else { return "—" }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 }
