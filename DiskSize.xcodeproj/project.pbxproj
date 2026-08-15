@@ -1,0 +1,294 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1A000000000000000000001A /* DiskSizeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000012 /* DiskSizeApp.swift */; };
+		1A000000000000000000001B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000013 /* ContentView.swift */; };
+		1A000000000000000000001C /* DiskItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000014 /* DiskItem.swift */; };
+		1A000000000000000000001D /* Shell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000015 /* Shell.swift */; };
+		1A000000000000000000001E /* DiskScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000016 /* DiskScanner.swift */; };
+		1A000000000000000000001F /* Deleter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000017 /* Deleter.swift */; };
+		1A0000000000000000000020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000018 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1A0000000000000000000011 /* DiskSize.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DiskSize.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A0000000000000000000012 /* DiskSizeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSizeApp.swift; sourceTree = "<group>"; };
+		1A0000000000000000000013 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000014 /* DiskItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskItem.swift; sourceTree = "<group>"; };
+		1A0000000000000000000015 /* Shell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell.swift; sourceTree = "<group>"; };
+		1A0000000000000000000016 /* DiskScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskScanner.swift; sourceTree = "<group>"; };
+		1A0000000000000000000017 /* Deleter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deleter.swift; sourceTree = "<group>"; };
+		1A0000000000000000000018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1A0000000000000000000019 /* DiskSize.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DiskSize.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1A0000000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1A000000000000000000000C = {
+			isa = PBXGroup;
+			children = (
+				1A000000000000000000000D /* DiskSize */,
+				1A0000000000000000000010 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1A000000000000000000000D /* DiskSize */ = {
+			isa = PBXGroup;
+			children = (
+				1A0000000000000000000012 /* DiskSizeApp.swift */,
+				1A0000000000000000000013 /* ContentView.swift */,
+				1A000000000000000000000E /* Models */,
+				1A000000000000000000000F /* Services */,
+				1A0000000000000000000018 /* Assets.xcassets */,
+				1A0000000000000000000019 /* DiskSize.entitlements */,
+			);
+			path = DiskSize;
+			sourceTree = "<group>";
+		};
+		1A000000000000000000000E /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				1A0000000000000000000014 /* DiskItem.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		1A000000000000000000000F /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				1A0000000000000000000015 /* Shell.swift */,
+				1A0000000000000000000016 /* DiskScanner.swift */,
+				1A0000000000000000000017 /* Deleter.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		1A0000000000000000000010 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1A0000000000000000000011 /* DiskSize.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1A0000000000000000000002 /* DiskSize */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1A0000000000000000000007 /* Build configuration list for PBXNativeTarget "DiskSize" */;
+			buildPhases = (
+				1A0000000000000000000003 /* Sources */,
+				1A0000000000000000000004 /* Frameworks */,
+				1A0000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DiskSize;
+			productName = DiskSize;
+			productReference = 1A0000000000000000000011 /* DiskSize.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1A0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1520;
+				LastUpgradeCheck = 1520;
+				TargetAttributes = {
+					1A0000000000000000000002 = {
+						CreatedOnToolsVersion = 15.2;
+					};
+				};
+			};
+			buildConfigurationList = 1A0000000000000000000006 /* Build configuration list for PBXProject "DiskSize" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 1A000000000000000000000C;
+			productRefGroup = 1A0000000000000000000010 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1A0000000000000000000002 /* DiskSize */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1A0000000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A0000000000000000000020 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1A0000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A000000000000000000001B /* ContentView.swift in Sources */,
+				1A000000000000000000001A /* DiskSizeApp.swift in Sources */,
+				1A000000000000000000001C /* DiskItem.swift in Sources */,
+				1A000000000000000000001D /* Shell.swift in Sources */,
+				1A000000000000000000001E /* DiskScanner.swift in Sources */,
+				1A000000000000000000001F /* Deleter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1A0000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		1A0000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		1A000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DiskSize/DiskSize.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nabaruns.DiskSize;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		1A000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DiskSize/DiskSize.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nabaruns.DiskSize;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1A0000000000000000000006 /* Build configuration list for PBXProject "DiskSize" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1A0000000000000000000008 /* Debug */,
+				1A0000000000000000000009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1A0000000000000000000007 /* Build configuration list for PBXNativeTarget "DiskSize" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1A000000000000000000000A /* Debug */,
+				1A000000000000000000000B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1A0000000000000000000001 /* Project object */;
+}
