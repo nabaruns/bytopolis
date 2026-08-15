@@ -13,6 +13,12 @@ final class ScanModel: ObservableObject {
         .init(\.byteSize, order: .reverse)
     ]
 
+    // Indexing / cache state
+    @Published var servedFromIndex = false  // current view came from the cached index
+    @Published var indexBuiltAt: Date?      // when the active index was scanned
+    @Published var stale = false            // shown folder changed on disk since the scan
+
+    private var index: ScanIndex?
     private var scanTask: Task<Void, Never>?
 
     var sortedChildren: [DiskItem] {
@@ -40,7 +46,7 @@ final class ScanModel: ObservableObject {
         panel.prompt = "Scan"
         if panel.runModal() == .OK, let url = panel.url {
             targetPath = url.path
-            scan(asAdmin: false)
+            scan()
         }
     }
 
@@ -48,7 +54,7 @@ final class ScanModel: ObservableObject {
     func open(_ item: DiskItem) {
         if item.isDirectory {
             targetPath = item.path
-            scan(asAdmin: false)
+            scan()                      // instant when inside the current index
         } else {
             reveal(item)
         }
@@ -59,58 +65,118 @@ final class ScanModel: ObservableObject {
     }
 
     var canGoUp: Bool {
-        guard !targetPath.isEmpty else { return false }
-        let parent = URL(fileURLWithPath: targetPath).deletingLastPathComponent().path
-        return parent != targetPath && !targetPath.isEmpty && targetPath != "/"
+        let p = DiskScanner.standardize(targetPath.trimmingCharacters(in: .whitespaces))
+        return !p.isEmpty && p != "/"
     }
 
     func goUp() {
         guard canGoUp else { return }
-        targetPath = URL(fileURLWithPath: targetPath).deletingLastPathComponent().path
-        scan(asAdmin: false)
+        targetPath = URL(fileURLWithPath: DiskScanner.standardize(targetPath)).deletingLastPathComponent().path
+        scan()
     }
 
-    // MARK: - Scanning (two-phase)
+    // MARK: - Scanning (index-backed)
 
-    func scan(asAdmin: Bool) {
-        let path = targetPath.trimmingCharacters(in: .whitespaces)
+    /// Browse `targetPath`. Served instantly from the cached index when the path is
+    /// within it; otherwise runs a fresh full `du` scan and (re)builds the index.
+    func scan(asAdmin: Bool = false, force: Bool = false) {
+        let expanded = (targetPath.trimmingCharacters(in: .whitespaces) as NSString).expandingTildeInPath
+        let path = DiskScanner.standardize(expanded)
         guard !path.isEmpty else { return }
+        targetPath = path               // reflect the resolved absolute path
 
         scanTask?.cancel()
         errorMessage = nil
+
+        // Cache hit — no du needed.
+        if !force, !asAdmin, let idx = index, idx.contains(path) {
+            present(path: path, from: idx, servedFromIndex: true)
+            return
+        }
+
+        // Fresh full scan rooted at `path`.
         total = nil
         partial = false
-
-        // Phase 1: instant listing so the folder's contents appear immediately.
+        servedFromIndex = false
         children = Self.quickList(path: path)
         sizesPending = true
 
-        // Phase 2: du computes real sizes off the main thread.
         scanTask = Task {
-            let outcome: Result<ScanResult, Error> = await Task.detached(priority: .userInitiated) {
+            let outcome: Result<FullScanResult, Error> = await Task.detached(priority: .userInitiated) {
                 do {
-                    let result = asAdmin
-                        ? try DiskScanner.scanAsAdmin(path: path)
-                        : try DiskScanner.scan(path: path)
-                    return .success(result)
+                    let r = asAdmin
+                        ? try DiskScanner.fullScanAsAdmin(path: path)
+                        : try DiskScanner.fullScan(path: path)
+                    return .success(r)
                 } catch {
                     return .failure(error)
                 }
             }.value
 
             if Task.isCancelled { return }
-
             sizesPending = false
+
             switch outcome {
-            case .success(let result):
-                total = result.target
-                children = result.children      // now with sizes, sorted largest-first
-                partial = result.partial
+            case .success(let r):
+                let idx = ScanIndex(root: r.root, builtAt: Date(),
+                                    dirSizes: r.dirSizes, partial: r.partial)
+                index = idx
+                present(path: path, from: idx, servedFromIndex: false)
             case .failure(let error):
                 errorMessage = error.localizedDescription
                 // Keep the phase-1 listing so the user still sees the folder.
             }
         }
+    }
+
+    /// Build the visible rows for `path` from the index (dir sizes) plus the
+    /// filesystem (file sizes + directory listing). No `du` involved.
+    private func present(path: String, from idx: ScanIndex, servedFromIndex: Bool) {
+        let fm = FileManager.default
+        let std = DiskScanner.standardize(path)
+        let dirURL = URL(fileURLWithPath: std)
+
+        var isDir: ObjCBool = false
+        fm.fileExists(atPath: std, isDirectory: &isDir)
+
+        total = DiskItem(url: dirURL,
+                         byteSize: idx.dirSize(std) ?? 0,
+                         isDirectory: isDir.boolValue,
+                         sizeKnown: idx.dirSize(std) != nil)
+
+        var items: [DiskItem] = []
+        if let entries = try? fm.contentsOfDirectory(
+            at: dirURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey],
+            options: [.skipsSubdirectoryDescendants]
+        ) {
+            for url in entries {
+                let vals = try? url.resourceValues(forKeys: [.isDirectoryKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey])
+                let isDirectory = vals?.isDirectory ?? false
+                if isDirectory {
+                    let size = idx.dirSize(url.path)
+                    items.append(DiskItem(url: url, byteSize: size ?? 0,
+                                          isDirectory: true, sizeKnown: size != nil))
+                } else {
+                    let bytes = vals?.totalFileAllocatedSize ?? vals?.fileAllocatedSize ?? 0
+                    items.append(DiskItem(url: url, byteSize: Int64(bytes),
+                                          isDirectory: false, sizeKnown: true))
+                }
+            }
+        }
+
+        children = items
+        partial = idx.partial
+        self.servedFromIndex = servedFromIndex
+        indexBuiltAt = idx.builtAt
+        stale = Self.modifiedAfter(std, date: idx.builtAt)
+    }
+
+    /// Has this directory been modified since the index was built?
+    private static func modifiedAfter(_ path: String, date: Date) -> Bool {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+              let mtime = attrs[.modificationDate] as? Date else { return false }
+        return mtime > date
     }
 
     /// Fast, best-effort immediate children via FileManager (no sizes yet).
@@ -157,7 +223,8 @@ final class ScanModel: ObservableObject {
 
             switch outcome {
             case .success:
-                scan(asAdmin: false)   // refresh totals + list
+                index = nil               // sizes changed — invalidate the index
+                scan(force: true)         // rebuild + refresh
             case .failure(let error):
                 errorMessage = error.localizedDescription
             }
@@ -227,10 +294,11 @@ struct ContentView: View {
 
             TextField("Path to scan", text: $model.targetPath)
                 .textFieldStyle(.roundedBorder)
-                .onSubmit { model.scan(asAdmin: false) }
+                .onSubmit { model.scan() }
 
-            Button("Rescan") { model.scan(asAdmin: false) }
+            Button("Rescan") { model.scan(force: true) }
                 .disabled(model.targetPath.isEmpty)
+                .help("Discard the index and scan fresh")
 
             Button("As Admin") { model.scan(asAdmin: true) }
                 .disabled(model.targetPath.isEmpty)
@@ -242,20 +310,19 @@ struct ContentView: View {
     @ViewBuilder
     private var header: some View {
         if !model.targetPath.isEmpty && (model.total != nil || model.sizesPending) {
-            HStack {
+            HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(model.total?.path ?? model.targetPath)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    HStack(spacing: 6) {
-                        if let total = model.total {
-                            Text(total.formattedSize).font(.title2).bold()
-                        } else {
-                            Text("Calculating…").font(.title2).foregroundStyle(.secondary)
-                        }
+                    if let total = model.total {
+                        Text(total.formattedSize).font(.title2).bold()
+                    } else {
+                        Text("Calculating…").font(.title2).foregroundStyle(.secondary)
                     }
+                    indexStatus
                 }
                 Spacer()
                 if model.sizesPending { ProgressView().controlSize(.small) }
@@ -274,6 +341,25 @@ struct ContentView: View {
 
         if let error = model.errorMessage {
             banner(error, icon: "exclamationmark.triangle.fill", action: nil)
+        }
+    }
+
+    @ViewBuilder
+    private var indexStatus: some View {
+        if let builtAt = model.indexBuiltAt, !model.sizesPending {
+            HStack(spacing: 5) {
+                Image(systemName: model.servedFromIndex ? "bolt.fill" : "clock.arrow.circlepath")
+                    .foregroundStyle(model.servedFromIndex ? .green : .secondary)
+                Text(model.servedFromIndex ? "Indexed" : "Scanned")
+                Text(builtAt, style: .relative) + Text(" ago")
+                if model.stale {
+                    Text("· changed since scan").foregroundStyle(.orange)
+                    Button("Rescan") { model.scan(force: true) }
+                        .buttonStyle(.link)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 

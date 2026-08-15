@@ -14,6 +14,7 @@
 		1A000000000000000000001E /* DiskScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000016 /* DiskScanner.swift */; };
 		1A000000000000000000001F /* Deleter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000017 /* Deleter.swift */; };
 		1A0000000000000000000020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000018 /* Assets.xcassets */; };
+		1A0000000000000000000022 /* ScanIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000021 /* ScanIndex.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +25,7 @@
 		1A0000000000000000000015 /* Shell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell.swift; sourceTree = "<group>"; };
 		1A0000000000000000000016 /* DiskScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskScanner.swift; sourceTree = "<group>"; };
 		1A0000000000000000000017 /* Deleter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deleter.swift; sourceTree = "<group>"; };
+		1A0000000000000000000021 /* ScanIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanIndex.swift; sourceTree = "<group>"; };
 		1A0000000000000000000018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A0000000000000000000019 /* DiskSize.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DiskSize.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -73,6 +75,7 @@
 			children = (
 				1A0000000000000000000015 /* Shell.swift */,
 				1A0000000000000000000016 /* DiskScanner.swift */,
+				1A0000000000000000000021 /* ScanIndex.swift */,
 				1A0000000000000000000017 /* Deleter.swift */,
 			);
 			path = Services;
@@ -160,6 +163,7 @@
 				1A000000000000000000001C /* DiskItem.swift in Sources */,
 				1A000000000000000000001D /* Shell.swift in Sources */,
 				1A000000000000000000001E /* DiskScanner.swift in Sources */,
+				1A0000000000000000000022 /* ScanIndex.swift in Sources */,
 				1A000000000000000000001F /* Deleter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

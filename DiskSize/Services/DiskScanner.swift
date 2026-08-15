@@ -1,11 +1,11 @@
 import Foundation
 
-/// Outcome of a scan: the target total, its immediate children, and whether some
-/// entries were unreadable (which the UI turns into an "escalate to admin" prompt).
-struct ScanResult {
-    let target: DiskItem
-    let children: [DiskItem]
-    let partial: Bool          // true if du reported permission errors
+/// Result of a full-subtree scan: the size of every directory beneath (and
+/// including) the root, plus whether any entries were unreadable.
+struct FullScanResult {
+    let root: String                 // standardized
+    let dirSizes: [String: Int64]
+    let partial: Bool
     let stderr: String
 }
 
@@ -21,19 +21,24 @@ enum ScanError: Error, LocalizedError {
     }
 }
 
-/// Wraps `du -k -d1 <path>`. We use `-k` (numeric KB) rather than `-h` so sizes
-/// sort correctly; the UI formats bytes to human units with ByteCountFormatter.
+/// Wraps `du -k <path>` (no `-d1`, so it reports every directory in the subtree).
+/// `-k` gives numeric KB; the UI formats bytes to human units. One run indexes the
+/// whole tree, which callers cache in a `ScanIndex` for instant browsing.
 enum DiskScanner {
 
-    /// Scan as the current user.
-    static func scan(path: String) throws -> ScanResult {
-        let result = Shell.run("/usr/bin/du", ["-k", "-d", "1", path])
+    static func standardize(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
+    /// Full scan as the current user.
+    static func fullScan(path: String) throws -> FullScanResult {
+        let result = Shell.run("/usr/bin/du", ["-k", path])
         return try parse(result: result, targetPath: path)
     }
 
-    /// Scan with administrator privileges (native auth prompt).
-    static func scanAsAdmin(path: String) throws -> ScanResult {
-        let cmd = "/usr/bin/du -k -d 1 " + Shell.shellQuote(path)
+    /// Full scan with administrator privileges (native auth prompt).
+    static func fullScanAsAdmin(path: String) throws -> FullScanResult {
+        let cmd = "/usr/bin/du -k " + Shell.shellQuote(path)
         let result = Shell.runAsAdmin(shellCommand: cmd)
         if result.exitCode == -128 { throw ScanError.cancelledAuthorization }
         return try parse(result: result, targetPath: path)
@@ -41,47 +46,26 @@ enum DiskScanner {
 
     // MARK: - Parsing
 
-    private static func parse(result: ShellResult, targetPath: String) throws -> ScanResult {
-        // du prints partial output even on permission errors, so only bail when we
+    private static func parse(result: ShellResult, targetPath: String) throws -> FullScanResult {
+        // du emits partial output even on permission errors, so only bail when we
         // truly got nothing usable.
         if result.stdout.isEmpty && !result.succeeded {
             throw ScanError.failed(result.stderr.isEmpty ? "Scan failed." : result.stderr)
         }
 
-        let fm = FileManager.default
-        let normalizedTarget = URL(fileURLWithPath: targetPath).standardizedFileURL.path
-
-        var target: DiskItem?
-        var children: [DiskItem] = []
-
+        var dirSizes: [String: Int64] = [:]
         for rawLine in result.stdout.split(separator: "\n") {
             // Format: "<kbytes>\t<path>"
             guard let tab = rawLine.firstIndex(of: "\t") else { continue }
             let kbString = rawLine[..<tab].trimmingCharacters(in: .whitespaces)
             let linePath = String(rawLine[rawLine.index(after: tab)...])
             guard let kb = Int64(kbString) else { continue }
-
-            let url = URL(fileURLWithPath: linePath)
-            var isDir: ObjCBool = false
-            fm.fileExists(atPath: linePath, isDirectory: &isDir)
-
-            let item = DiskItem(url: url, byteSize: kb * 1024, isDirectory: isDir.boolValue)
-
-            if url.standardizedFileURL.path == normalizedTarget {
-                target = item
-            } else {
-                children.append(item)
-            }
+            dirSizes[standardize(linePath)] = kb * 1024
         }
 
-        // Single-file target: du emits only the file's own line.
-        let resolvedTarget = target ?? children.first ?? DiskItem(
-            url: URL(fileURLWithPath: targetPath), byteSize: 0, isDirectory: false)
-        let resolvedChildren = (target == nil) ? [] : children
-
-        return ScanResult(
-            target: resolvedTarget,
-            children: resolvedChildren.sorted { $0.byteSize > $1.byteSize },
+        return FullScanResult(
+            root: standardize(targetPath),
+            dirSizes: dirSizes,
             partial: result.hasPermissionError && !result.stdout.isEmpty,
             stderr: result.stderr
         )

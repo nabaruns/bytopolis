@@ -12,7 +12,9 @@ du -h -d1 ~/some/folder
 
 - Pick a folder or file (or type/paste a path).
 - See the **total size** plus every immediate child, sorted largest-first, with a proportion bar.
-- Sizes come from `du -k -d1 <path>` and are formatted to human units (KB/MB/GB) in-app, so sorting stays accurate.
+- **Scans once, then browses instantly.** One `du -k <path>` (no depth limit) walks the whole subtree and records the size of *every* directory in it — for the same disk cost as a one-level scan, since `du` traverses everything regardless. Those sizes are kept in an in-memory **index**, so drilling into any subfolder or going back up is served from cache with no re-scan. The header shows a ⚡️ "Indexed …" / 🕓 "Scanned …" badge with the scan time.
+- **Cache invalidation:** *Rescan* discards the index and scans fresh; deleting anything auto-rebuilds it; and if a folder's modification date is newer than the scan, the header flags "changed since scan" with a one-click Rescan.
+- Sizes come from `du -k` and are formatted to human units (KB/MB/GB) in-app, so sorting stays accurate. Individual file sizes come straight from the filesystem (`stat`) — no recursion needed.
 - **Permission-denied paths** (e.g. system folders): the app shows a banner and a one-click **"As Admin"** rescan that triggers the standard macOS admin-password prompt.
 - **Delete**: the trash button asks for confirmation (showing the full path + size), then lets you **Move to Trash** (reversible, the safe default) or **Delete Permanently** with `rm -rf`. There's an **admin** variant of the permanent delete for protected paths, and a hard guardrail that refuses `/`, your home folder, and top-level system directories.
 
