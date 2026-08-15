@@ -6,7 +6,7 @@ final class ScanModel: ObservableObject {
     @Published var targetPath: String = ""
     @Published var total: DiskItem?
     @Published var children: [DiskItem] = []
-    @Published var isScanning = false
+    @Published var sizesPending = false     // list is shown, du still computing sizes
     @Published var partial = false          // du hit permission errors
     @Published var errorMessage: String?
     @Published var sortOrder: [KeyPathComparator<DiskItem>] = [
@@ -16,10 +16,21 @@ final class ScanModel: ObservableObject {
     private var scanTask: Task<Void, Never>?
 
     var sortedChildren: [DiskItem] {
-        children.sorted(using: sortOrder)
+        if sizesPending {
+            // No sizes yet — show folders first, then alphabetical.
+            return children.sorted { a, b in
+                if a.isDirectory != b.isDirectory { return a.isDirectory && !b.isDirectory }
+                return a.name.localizedStandardCompare(b.name) == .orderedAscending
+            }
+        }
+        return children.sorted(using: sortOrder)
     }
 
-    var largest: Int64 { children.map(\.byteSize).max() ?? 0 }
+    var largest: Int64 { children.filter(\.sizeKnown).map(\.byteSize).max() ?? 0 }
+
+    func item(id: DiskItem.ID) -> DiskItem? { children.first { $0.id == id } }
+
+    // MARK: - Navigation
 
     func chooseTarget() {
         let panel = NSOpenPanel()
@@ -33,14 +44,48 @@ final class ScanModel: ObservableObject {
         }
     }
 
+    /// Double-click / Return on a row: drill into folders, reveal files.
+    func open(_ item: DiskItem) {
+        if item.isDirectory {
+            targetPath = item.path
+            scan(asAdmin: false)
+        } else {
+            reveal(item)
+        }
+    }
+
+    func reveal(_ item: DiskItem) {
+        NSWorkspace.shared.activateFileViewerSelecting([item.url])
+    }
+
+    var canGoUp: Bool {
+        guard !targetPath.isEmpty else { return false }
+        let parent = URL(fileURLWithPath: targetPath).deletingLastPathComponent().path
+        return parent != targetPath && !targetPath.isEmpty && targetPath != "/"
+    }
+
+    func goUp() {
+        guard canGoUp else { return }
+        targetPath = URL(fileURLWithPath: targetPath).deletingLastPathComponent().path
+        scan(asAdmin: false)
+    }
+
+    // MARK: - Scanning (two-phase)
+
     func scan(asAdmin: Bool) {
         let path = targetPath.trimmingCharacters(in: .whitespaces)
         guard !path.isEmpty else { return }
 
         scanTask?.cancel()
-        isScanning = true
         errorMessage = nil
+        total = nil
+        partial = false
 
+        // Phase 1: instant listing so the folder's contents appear immediately.
+        children = Self.quickList(path: path)
+        sizesPending = true
+
+        // Phase 2: du computes real sizes off the main thread.
         scanTask = Task {
             let outcome: Result<ScanResult, Error> = await Task.detached(priority: .userInitiated) {
                 do {
@@ -55,17 +100,38 @@ final class ScanModel: ObservableObject {
 
             if Task.isCancelled { return }
 
-            isScanning = false
+            sizesPending = false
             switch outcome {
             case .success(let result):
                 total = result.target
-                children = result.children
+                children = result.children      // now with sizes, sorted largest-first
                 partial = result.partial
             case .failure(let error):
                 errorMessage = error.localizedDescription
+                // Keep the phase-1 listing so the user still sees the folder.
             }
         }
     }
+
+    /// Fast, best-effort immediate children via FileManager (no sizes yet).
+    private static func quickList(path: String) -> [DiskItem] {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else { return [] }
+        let dir = URL(fileURLWithPath: path)
+        guard let entries = try? fm.contentsOfDirectory(
+            at: dir,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsSubdirectoryDescendants]   // includes hidden files, like du
+        ) else { return [] }
+
+        return entries.map { url in
+            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            return DiskItem(url: url, byteSize: 0, isDirectory: isDirectory, sizeKnown: false)
+        }
+    }
+
+    // MARK: - Delete
 
     enum DeleteMode {
         case trash          // reversible, Finder Trash
@@ -101,6 +167,7 @@ final class ScanModel: ObservableObject {
 
 struct ContentView: View {
     @StateObject private var model = ScanModel()
+    @State private var selection: DiskItem.ID?
     @State private var pendingDelete: DiskItem?
 
     var body: some View {
@@ -150,6 +217,14 @@ struct ContentView: View {
                 Label("Choose…", systemImage: "folder")
             }
 
+            Button {
+                model.goUp()
+            } label: {
+                Image(systemName: "arrow.up")
+            }
+            .disabled(!model.canGoUp)
+            .help("Go to parent folder")
+
             TextField("Path to scan", text: $model.targetPath)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { model.scan(asAdmin: false) }
@@ -166,19 +241,24 @@ struct ContentView: View {
 
     @ViewBuilder
     private var header: some View {
-        if let total = model.total {
+        if !model.targetPath.isEmpty && (model.total != nil || model.sizesPending) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(total.path)
+                    Text(model.total?.path ?? model.targetPath)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Text(total.formattedSize)
-                        .font(.title2).bold()
+                    HStack(spacing: 6) {
+                        if let total = model.total {
+                            Text(total.formattedSize).font(.title2).bold()
+                        } else {
+                            Text("Calculating…").font(.title2).foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 Spacer()
-                if model.isScanning { ProgressView().controlSize(.small) }
+                if model.sizesPending { ProgressView().controlSize(.small) }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -199,11 +279,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.total == nil && model.isScanning {
-            Spacer()
-            ProgressView("Scanning…")
-            Spacer()
-        } else if model.total == nil {
+        if model.targetPath.isEmpty {
             Spacer()
             ContentUnavailableCompat(
                 title: "No folder selected",
@@ -212,7 +288,7 @@ struct ContentView: View {
             )
             Spacer()
         } else {
-            Table(model.sortedChildren, sortOrder: $model.sortOrder) {
+            Table(model.sortedChildren, selection: $selection, sortOrder: $model.sortOrder) {
                 TableColumn("Name") { item in
                     HStack(spacing: 6) {
                         Image(systemName: item.isDirectory ? "folder.fill" : "doc")
@@ -223,9 +299,16 @@ struct ContentView: View {
                 .width(min: 160, ideal: 260)
 
                 TableColumn("Size", value: \.byteSize) { item in
-                    ProportionCell(size: item.byteSize,
-                                   largest: model.largest,
-                                   label: item.formattedSize)
+                    if item.sizeKnown {
+                        ProportionCell(size: item.byteSize,
+                                       largest: model.largest,
+                                       label: item.formattedSize)
+                    } else {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small).scaleEffect(0.7)
+                            Text("—").foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 .width(min: 140, ideal: 180)
 
@@ -239,6 +322,20 @@ struct ContentView: View {
                     .help("Delete \(item.path)")
                 }
                 .width(40)
+            }
+            .contextMenu(forSelectionType: DiskItem.ID.self) { ids in
+                if let id = ids.first, let item = model.item(id: id) {
+                    if item.isDirectory {
+                        Button("Open") { model.open(item) }
+                    }
+                    Button("Reveal in Finder") { model.reveal(item) }
+                    Divider()
+                    Button("Delete…", role: .destructive) { pendingDelete = item }
+                }
+            } primaryAction: { ids in
+                if let id = ids.first, let item = model.item(id: id) {
+                    model.open(item)   // double-click / Return
+                }
             }
         }
     }
