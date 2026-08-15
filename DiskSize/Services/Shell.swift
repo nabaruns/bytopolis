@@ -37,9 +37,17 @@ enum Shell {
             return ShellResult(stdout: "", stderr: "Failed to launch \(launchPath): \(error.localizedDescription)", exitCode: -1)
         }
 
-        // Read before waiting to avoid deadlock on large output.
-        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        // Drain stdout and stderr concurrently. Reading them sequentially can
+        // deadlock: if one pipe's 64KB buffer fills while we're blocked reading
+        // the other, the child blocks on write and never exits (e.g. `du`
+        // flooding stderr with "Permission denied" on protected subtrees).
+        var outData = Data()
+        var errData = Data()
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "shell.pipe-read", attributes: .concurrent)
+        queue.async(group: group) { outData = outPipe.fileHandleForReading.readDataToEndOfFile() }
+        queue.async(group: group) { errData = errPipe.fileHandleForReading.readDataToEndOfFile() }
+        group.wait()
         process.waitUntilExit()
 
         return ShellResult(
