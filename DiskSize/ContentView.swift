@@ -17,6 +17,7 @@ final class ScanModel: ObservableObject {
     @Published var servedFromIndex = false  // current view came from the cached index
     @Published var indexBuiltAt: Date?      // when the active index was scanned
     @Published var stale = false            // shown folder changed on disk since the scan
+    @Published var refreshing = false       // background incremental refresh in progress
 
     private var index: ScanIndex?
     private var scanTask: Task<Void, Never>?
@@ -75,10 +76,13 @@ final class ScanModel: ObservableObject {
         scan()
     }
 
-    // MARK: - Scanning (index-backed)
+    // MARK: - Scanning (index-backed, persisted)
 
-    /// Browse `targetPath`. Served instantly from the cached index when the path is
-    /// within it; otherwise runs a fresh full `du` scan and (re)builds the index.
+    /// Browse `targetPath`. Order of preference:
+    ///   1. In-memory index that contains the path — instant.
+    ///   2. Persisted (on-disk) index that contains the path — instant, then an
+    ///      incremental refresh runs in the background to catch changes.
+    ///   3. A fresh full `du` scan, which is then persisted.
     func scan(asAdmin: Bool = false, force: Bool = false) {
         let expanded = (targetPath.trimmingCharacters(in: .whitespaces) as NSString).expandingTildeInPath
         let path = DiskScanner.standardize(expanded)
@@ -88,13 +92,13 @@ final class ScanModel: ObservableObject {
         scanTask?.cancel()
         errorMessage = nil
 
-        // Cache hit — no du needed.
+        // 1. In-memory cache hit — no du needed.
         if !force, !asAdmin, let idx = index, idx.contains(path) {
             present(path: path, from: idx, servedFromIndex: true)
+            if stale { refreshInBackground(showing: path) }
             return
         }
 
-        // Fresh full scan rooted at `path`.
         total = nil
         partial = false
         servedFromIndex = false
@@ -102,6 +106,20 @@ final class ScanModel: ObservableObject {
         sizesPending = true
 
         scanTask = Task {
+            // 2. Persisted cache hit — show instantly, then refresh in the background.
+            if !force, !asAdmin,
+               let disk = await Task.detached(priority: .userInitiated, operation: {
+                   IndexStore.findContaining(path)
+               }).value {
+                if Task.isCancelled { return }
+                index = disk
+                sizesPending = false
+                present(path: path, from: disk, servedFromIndex: true)
+                refreshInBackground(showing: path)
+                return
+            }
+
+            // 3. Fresh full scan.
             let outcome: Result<FullScanResult, Error> = await Task.detached(priority: .userInitiated) {
                 do {
                     let r = asAdmin
@@ -119,14 +137,41 @@ final class ScanModel: ObservableObject {
             switch outcome {
             case .success(let r):
                 let idx = ScanIndex(root: r.root, builtAt: Date(),
-                                    dirSizes: r.dirSizes, partial: r.partial)
+                                    dirSizes: r.dirSizes, dirMTimes: r.dirMTimes, partial: r.partial)
                 index = idx
                 present(path: path, from: idx, servedFromIndex: false)
+                persist(idx)
             case .failure(let error):
                 errorMessage = error.localizedDescription
                 // Keep the phase-1 listing so the user still sees the folder.
             }
         }
+    }
+
+    /// Re-scan only the changed subtrees of the active index, off the main thread,
+    /// then update the view and persist the fresher index.
+    private func refreshInBackground(showing path: String) {
+        guard let cache = index, !refreshing else { return }
+        refreshing = true
+        Task {
+            let refreshed = await Task.detached(priority: .utility) { () -> ScanIndex? in
+                try? IncrementalScanner.refresh(cache: cache, asAdmin: false).index
+            }.value
+
+            refreshing = false
+            guard let refreshed, !Task.isCancelled else { return }
+            index = refreshed
+            persist(refreshed)
+            // Re-present if the user is still looking at a folder in this index.
+            let current = DiskScanner.standardize(targetPath)
+            if refreshed.contains(current) {
+                present(path: current, from: refreshed, servedFromIndex: true)
+            }
+        }
+    }
+
+    private func persist(_ idx: ScanIndex) {
+        Task.detached(priority: .background) { IndexStore.save(idx) }
     }
 
     /// Build the visible rows for `path` from the index (dir sizes) plus the
@@ -352,7 +397,10 @@ struct ContentView: View {
                     .foregroundStyle(model.servedFromIndex ? .green : .secondary)
                 Text(model.servedFromIndex ? "Indexed" : "Scanned")
                 Text(builtAt, style: .relative) + Text(" ago")
-                if model.stale {
+                if model.refreshing {
+                    ProgressView().controlSize(.small).scaleEffect(0.6)
+                    Text("refreshing changed folders…").foregroundStyle(.secondary)
+                } else if model.stale {
                     Text("· changed since scan").foregroundStyle(.orange)
                     Button("Rescan") { model.scan(force: true) }
                         .buttonStyle(.link)
