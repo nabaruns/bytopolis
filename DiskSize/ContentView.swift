@@ -19,8 +19,16 @@ final class ScanModel: ObservableObject {
     @Published var stale = false            // shown folder changed on disk since the scan
     @Published var refreshing = false       // background incremental refresh in progress
 
+    // Per-folder item counts (filled in the background so browsing stays instant).
+    @Published var childCounts: [DiskItem.ID: Int] = [:]
+
+    // On-disk cache stats
+    @Published var cacheBytes: Int64 = 0
+    @Published var cacheCount: Int = 0
+
     private var index: ScanIndex?
     private var scanTask: Task<Void, Never>?
+    private var countTask: Task<Void, Never>?
 
     var sortedChildren: [DiskItem] {
         if sizesPending {
@@ -171,7 +179,10 @@ final class ScanModel: ObservableObject {
     }
 
     private func persist(_ idx: ScanIndex) {
-        Task.detached(priority: .background) { IndexStore.save(idx) }
+        Task {
+            await Task.detached(priority: .background) { IndexStore.save(idx) }.value
+            refreshCacheStats()
+        }
     }
 
     /// Build the visible rows for `path` from the index (dir sizes) plus the
@@ -222,6 +233,46 @@ final class ScanModel: ObservableObject {
         self.servedFromIndex = servedFromIndex
         indexBuiltAt = idx.builtAt
         stale = Self.modifiedAfter(std, date: idx.builtAt)
+        fillChildCounts(for: items)
+    }
+
+    /// Count each folder's immediate entries off the main thread, then publish.
+    private func fillChildCounts(for items: [DiskItem]) {
+        countTask?.cancel()
+        childCounts = [:]
+        let dirs = items.filter(\.isDirectory).map { ($0.id, $0.path) }
+        guard !dirs.isEmpty else { return }
+        countTask = Task {
+            let counts = await Task.detached(priority: .utility) { () -> [DiskItem.ID: Int] in
+                var result: [DiskItem.ID: Int] = [:]
+                for (id, path) in dirs {
+                    if Task.isCancelled { break }
+                    let n = (try? FileManager.default.contentsOfDirectory(atPath: path))?.count
+                    if let n { result[id] = n }
+                }
+                return result
+            }.value
+            if !Task.isCancelled { childCounts = counts }
+        }
+    }
+
+    // MARK: - Cache stats
+
+    func refreshCacheStats() {
+        Task {
+            let stats = await Task.detached(priority: .background) {
+                (bytes: IndexStore.totalBytes(), count: IndexStore.count())
+            }.value
+            cacheBytes = stats.bytes
+            cacheCount = stats.count
+        }
+    }
+
+    func clearCache() {
+        Task {
+            await Task.detached(priority: .background) { IndexStore.clearAll() }.value
+            refreshCacheStats()
+        }
     }
 
     /// Has this directory been modified since the index was built?
@@ -304,7 +355,10 @@ struct ContentView: View {
             Divider()
             header
             content
+            Divider()
+            cacheFooter
         }
+        .task { model.refreshCacheStats() }
         .confirmationDialog(
             "Delete this item?",
             isPresented: Binding(
@@ -477,6 +531,16 @@ struct ContentView: View {
                 }
                 .width(min: 120, ideal: 160)
 
+                TableColumn("Items") { item in
+                    if item.isDirectory {
+                        Text(model.childCounts[item.id].map(String.init) ?? "…")
+                            .foregroundStyle(.secondary).monospacedDigit()
+                    } else {
+                        Text("—").foregroundStyle(.secondary)
+                    }
+                }
+                .width(min: 50, ideal: 64)
+
                 TableColumn("") { item in
                     Button(role: .destructive) {
                         pendingDelete = item
@@ -503,6 +567,24 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private var cacheFooter: some View {
+        let used = ByteCountFormatter.string(fromByteCount: model.cacheBytes, countStyle: .file)
+        let cap = ByteCountFormatter.string(fromByteCount: IndexStore.maxTotalBytes, countStyle: .file)
+        return HStack(spacing: 8) {
+            Image(systemName: "externaldrive.badge.timemachine")
+                .foregroundStyle(.secondary)
+            Text("Index cache: \(used) / \(cap) · \(model.cacheCount) \(model.cacheCount == 1 ? "root" : "roots")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("Clear Cache") { model.clearCache() }
+                .controlSize(.small)
+                .disabled(model.cacheCount == 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 
     // MARK: - Helpers

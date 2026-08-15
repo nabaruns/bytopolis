@@ -11,7 +11,7 @@ du -h -d1 ~/some/folder
 ## What it does
 
 - Pick a folder or file (or type/paste a path).
-- See the **total size** plus every immediate child, sorted largest-first, with a proportion bar. Columns: **Name, Size, Kind, Modified, Created** — click any header to sort.
+- See the **total size** plus every immediate child, sorted largest-first, with a proportion bar. Columns: **Name, Size, Kind, Modified, Created** (all sortable) and **Items** (a folder's immediate entry count, filled in the background). A footer shows the on-disk **index cache** usage with a **Clear Cache** button.
 - **Scans once, then browses instantly.** One `du -k <path>` (no depth limit) walks the whole subtree and records the size of *every* directory in it — for the same disk cost as a one-level scan, since `du` traverses everything regardless. Those sizes are kept in an **index**, so drilling into any subfolder or going back up is served from cache with no re-scan. The header shows a ⚡️ "Indexed …" / 🕓 "Scanned …" badge with the scan time.
 - **The index persists across launches.** It's saved to `~/Library/Application Support/DiskSize/` (one JSON file per scanned root, plus a small manifest). Re-open the app and re-visit a folder you've scanned before and it appears **instantly** from disk — no waiting for a scan.
 - **The on-disk cache is capped** so it can't grow unbounded: least-recently-used indexes are evicted once the cache exceeds 100 MB or 50 roots, and any index unused for 30 days is dropped. Each visit bumps that index's recency so active roots are kept.

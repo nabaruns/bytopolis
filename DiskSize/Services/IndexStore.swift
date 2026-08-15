@@ -100,6 +100,15 @@ enum IndexStore {
         saveManifest(loadManifest().filter { $0.root != std })
     }
 
+    /// Delete every persisted index and the manifest.
+    static func clearAll() {
+        let fm = FileManager.default
+        for entry in loadManifest() {
+            try? fm.removeItem(at: baseDir.appendingPathComponent(entry.file))
+        }
+        try? fm.removeItem(at: manifestURL)
+    }
+
     /// Total bytes currently used by persisted indexes.
     static func totalBytes() -> Int64 { loadManifest().reduce(0) { $0 + $1.fileSize } }
 
