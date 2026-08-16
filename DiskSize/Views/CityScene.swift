@@ -36,9 +36,10 @@ enum CityScene {
                 node.name = n.id
                 root.addChildNode(node)
                 if n.kind == .facility { addWalls(to: root, rect: n.rect, baseY: baseY + Float(plotH)) }
-                if min(w, l) > 11, labelCount < maxLabels {
+                // Label only the current level's neighborhoods; drill in to see deeper names.
+                if n.depth == 0, min(w, l) > 8, labelCount < maxLabels {
                     addLabel(n.name, id: n.id, to: root,
-                             at: SCNVector3(cx, baseY + Float(plotH) + 2, cz), color: .white)
+                             at: SCNVector3(cx, baseY + Float(plotH) + 6, cz), color: .white)
                     labelCount += 1
                 }
 
@@ -57,7 +58,7 @@ enum CityScene {
                 root.addChildNode(node)
                 let topY = baseY + 0.6 + Float(h)
                 if n.isEntry { addBeacon(to: root, x: cx, y: topY + 5, z: cz) }
-                if min(w, l) > 11, labelCount < maxLabels {
+                if n.depth == 0, min(w, l) > 8, labelCount < maxLabels {
                     addLabel(n.name, id: n.id, to: root,
                              at: SCNVector3(cx, topY + 2.5, cz), color: .white)
                     labelCount += 1
