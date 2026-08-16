@@ -64,7 +64,7 @@ struct CityView: View {
                 .padding(12)
             }
         }
-        .task(id: model.targetPath) { await rebuild() }
+        .task(id: buildKey) { await rebuild() }
         .sheet(item: $configNode) { node in
             WorkerConfigView(repoName: node.name, repoPath: node.id) { agent, mode, task in
                 let worker = workers.start(repoPath: node.id, agent: agent, mode: mode, task: task)
@@ -104,11 +104,21 @@ struct CityView: View {
 
     // MARK: - Build
 
+    /// Rebuild when the path changes OR when the scan/index finishes (so the city uses the
+    /// cached index instead of an empty snapshot taken before the scan completed).
+    private var buildKey: String {
+        "\(model.targetPath)#\(model.indexBuiltAt?.timeIntervalSinceReferenceDate ?? 0)"
+    }
+
     private func rebuild() async {
         // Wait for a chosen workspace — an empty target standardizes to the cwd ("/").
         let raw = model.targetPath.trimmingCharacters(in: .whitespaces)
         guard !raw.isEmpty else { scene = nil; layout = nil; building = false; return }
         let root = DiskScanner.standardize(raw)
+
+        // Index not ready yet (scan still running) — show the spinner; this task re-fires
+        // via `buildKey` once `indexBuiltAt` updates.
+        guard model.currentIndex != nil else { building = true; scene = nil; layout = nil; return }
         building = true
         selectedPath = nil
         let idx = model.currentIndex
