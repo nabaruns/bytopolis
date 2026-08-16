@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct DiskSizeApp: App {
     var body: some Scene {
-        WindowGroup("DiskSize") {
+        WindowGroup("Bytopolis") {
             ContentView()
                 .frame(minWidth: 860, minHeight: 440)
         }

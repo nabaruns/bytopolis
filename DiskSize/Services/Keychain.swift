@@ -2,96 +2,118 @@ import Foundation
 import Security
 import LocalAuthentication
 
-/// Keychain storage for API keys, protected with Touch ID / Apple Watch / device password
-/// (`SecAccessControl(.userPresence)`). The unlocked value is cached for the process
-/// lifetime, so you authenticate **once per session** rather than on every request.
+/// Keychain storage for API keys. Prefers a Touch ID / device-password gate
+/// (`SecAccessControl(.userPresence)` in the data-protection keychain) and authenticates
+/// **once per session** (the unlocked value is cached for the process lifetime).
 ///
-/// Note: biometric-protected items are bound to the app's signing identity — with an
-/// ad-hoc "sign to run locally" build, re-signing can invalidate them and you'll re-enter
-/// the key. That's stable once signed with a Developer ID.
+/// The data-protection keychain requires a real signing identity, which an ad-hoc
+/// "sign to run locally" build doesn't have — so we transparently fall back to the legacy
+/// keychain (no biometric prompt) there. Saving always works; the biometric gate simply
+/// engages once the app is signed with a Developer ID.
 enum Keychain {
     private static let service = "com.nabaruns.DiskSize"
     private static var sessionCache: [String: String] = [:]
     private static let lock = NSLock()
 
-    private static func baseQuery(_ account: String) -> [String: Any] {
-        [
+    private static func base(_ account: String, dataProtection: Bool) -> [String: Any] {
+        var q: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecUseDataProtectionKeychain as String: true
+            kSecAttrAccount as String: account
         ]
+        if dataProtection { q[kSecUseDataProtectionKeychain as String] = true }
+        return q
     }
 
     // MARK: - Store
 
     static func set(_ key: String, account: String) {
-        lock.lock(); sessionCache[account] = nil; lock.unlock()
+        lock.withLock { sessionCache[account] = nil }
+        SecItemDelete(base(account, dataProtection: true) as CFDictionary)
+        SecItemDelete(base(account, dataProtection: false) as CFDictionary)
 
-        SecItemDelete(baseQuery(account) as CFDictionary)
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let data = Data(trimmed.utf8)
 
-        var add = baseQuery(account)
-        add[kSecValueData as String] = Data(trimmed.utf8)
-
-        // Prefer a biometric/user-presence access control; fall back to a plain accessible
-        // attribute if the platform can't create one (keeps the app usable everywhere).
+        // 1) Preferred: biometric-gated item in the data-protection keychain.
         if let access = SecAccessControlCreateWithFlags(
             nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, .userPresence, nil) {
-            add[kSecAttrAccessControl as String] = access
-            if SecItemAdd(add as CFDictionary, nil) == errSecSuccess { return }
-            add[kSecAttrAccessControl as String] = nil   // retry unprotected on failure
+            var q = base(account, dataProtection: true)
+            q[kSecValueData as String] = data
+            q[kSecAttrAccessControl as String] = access
+            if SecItemAdd(q as CFDictionary, nil) == errSecSuccess { return }
         }
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(add as CFDictionary, nil)
+
+        // 2) Fallback: legacy keychain (works without a signing identity).
+        var q = base(account, dataProtection: false)
+        q[kSecValueData as String] = data
+        q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        SecItemAdd(q as CFDictionary, nil)
     }
 
     static func delete(account: String) {
-        lock.lock(); sessionCache[account] = nil; lock.unlock()
-        SecItemDelete(baseQuery(account) as CFDictionary)
+        lock.withLock { sessionCache[account] = nil }
+        SecItemDelete(base(account, dataProtection: true) as CFDictionary)
+        SecItemDelete(base(account, dataProtection: false) as CFDictionary)
     }
 
-    // MARK: - Presence check (no prompt)
+    // MARK: - Presence (no prompt)
 
-    /// Whether a key is stored, without triggering an auth prompt (skips the UI).
     static func has(account: String) -> Bool {
         if lock.withLock({ sessionCache[account] != nil }) { return true }
-        var q = baseQuery(account)
+        // data-protection keychain (skip UI)
+        var q = base(account, dataProtection: true)
         q[kSecReturnData as String] = false
         q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUISkip
-        let status = SecItemCopyMatching(q as CFDictionary, nil)
-        return status == errSecSuccess || status == errSecInteractionNotAllowed
+        let s1 = SecItemCopyMatching(q as CFDictionary, nil)
+        if s1 == errSecSuccess || s1 == errSecInteractionNotAllowed { return true }
+        // legacy keychain
+        var q2 = base(account, dataProtection: false)
+        q2[kSecReturnData as String] = false
+        return SecItemCopyMatching(q2 as CFDictionary, nil) == errSecSuccess
     }
 
     // MARK: - Read (authenticate once per session)
 
-    /// Return the key, prompting for Touch ID / device password the first time this session
-    /// and caching it thereafter. Returns nil if absent or the user cancels auth.
     static func unlockedKey(account: String) async -> String? {
         if let cached = lock.withLock({ sessionCache[account] }) { return cached }
 
-        let context = LAContext()
-        context.localizedReason = "Unlock your API key for DiskSize"
-        guard await authenticate(context) else { return nil }
+        // Is it in the (biometric) data-protection keychain? Probe without prompting.
+        var probe = base(account, dataProtection: true)
+        probe[kSecReturnData as String] = false
+        probe[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUISkip
+        let probeStatus = SecItemCopyMatching(probe as CFDictionary, nil)
 
-        var q = baseQuery(account)
-        q[kSecReturnData as String] = true
-        q[kSecMatchLimit as String] = kSecMatchLimitOne
-        q[kSecUseAuthenticationContext as String] = context
+        if probeStatus == errSecSuccess || probeStatus == errSecInteractionNotAllowed {
+            let context = LAContext()
+            context.localizedReason = "Unlock your API key for Bytopolis"
+            guard await authenticate(context) else { return nil }
+            var q = base(account, dataProtection: true)
+            q[kSecReturnData as String] = true
+            q[kSecMatchLimit as String] = kSecMatchLimitOne
+            q[kSecUseAuthenticationContext as String] = context
+            var out: CFTypeRef?
+            if SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess,
+               let data = out as? Data, let key = String(data: data, encoding: .utf8), !key.isEmpty {
+                lock.withLock { sessionCache[account] = key }
+                return key
+            }
+        }
 
-        var out: CFTypeRef?
-        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess,
-              let data = out as? Data,
-              let key = String(data: data, encoding: .utf8), !key.isEmpty else { return nil }
-
+        // Legacy keychain (no prompt).
+        var q2 = base(account, dataProtection: false)
+        q2[kSecReturnData as String] = true
+        q2[kSecMatchLimit as String] = kSecMatchLimitOne
+        var out2: CFTypeRef?
+        guard SecItemCopyMatching(q2 as CFDictionary, &out2) == errSecSuccess,
+              let data = out2 as? Data, let key = String(data: data, encoding: .utf8), !key.isEmpty else { return nil }
         lock.withLock { sessionCache[account] = key }
         return key
     }
 
     private static func authenticate(_ context: LAContext) async -> Bool {
         var error: NSError?
-        // If no biometrics/passcode is configured, don't block access.
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else { return true }
         return await withCheckedContinuation { cont in
             context.evaluatePolicy(.deviceOwnerAuthentication,

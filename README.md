@@ -1,6 +1,6 @@
-# DiskSize
+# Bytopolis
 
-A small native macOS app to see **what's using space on disk** for a folder or file — the GUI equivalent of:
+A native macOS app that turns your disk into an explorable **city of files** — see what's using space, reclaim it, browse it as a 3D city where git repos are facilities you can put AI agents to work in, and ask a built-in assistant (cloud or on-device) what's safe to delete. At its core it's the GUI equivalent of:
 
 ```sh
 du -h -d1 ~/some/folder
