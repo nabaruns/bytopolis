@@ -22,7 +22,7 @@ enum CityScene {
             let cx = Float(n.rect.midX), cz = Float(n.rect.midY)
             let w = n.rect.width, l = n.rect.height
             let plotH: CGFloat = 0.6
-            let baseY = Float(n.depth) * 0.7
+            let baseY = Float(n.depth) * 1.4
 
             switch n.kind {
             case .district, .facility:
@@ -67,7 +67,16 @@ enum CityScene {
         }
     }
 
-    private static func buildingColor(_ n: CityNode) -> NSColor { base(n.category) }
+    private static func buildingColor(_ n: CityNode) -> NSColor {
+        // Reclaimable files use the category color; everything else gets a stable,
+        // muted hue from its file extension so the skyline is varied, not all grey.
+        if let c = n.category, c.reclaim != .keep { return base(c) }
+        let ext = (n.name as NSString).pathExtension.lowercased()
+        if ext.isEmpty { return NSColor(calibratedWhite: 0.72, alpha: 1) }
+        let seed = ext.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFFFF }
+        let hue = Double(seed % 360) / 360.0
+        return NSColor(calibratedHue: CGFloat(hue), saturation: 0.38, brightness: 0.78, alpha: 1)
+    }
 
     private static func glowColor(_ n: CityNode) -> NSColor {
         base(n.category).blended(withFraction: 0.5, of: .white) ?? .white
@@ -77,7 +86,7 @@ enum CityScene {
         if n.kind == .facility {
             return NSColor(calibratedHue: 0.75, saturation: 0.45, brightness: 0.5, alpha: 1)
         }
-        let shade = 0.22 + Double(n.depth % 3) * 0.05
+        let shade = 0.13 + Double(n.depth % 3) * 0.04
         return NSColor(calibratedWhite: shade, alpha: 1)
     }
 
@@ -138,9 +147,10 @@ enum CityScene {
     private static func addCamera(to root: SCNNode, side: Float) {
         let cam = SCNNode(); cam.camera = SCNCamera()
         cam.camera!.zFar = 4000
-        cam.camera!.fieldOfView = 55
-        cam.position = SCNVector3(side / 2, side * 0.85, side * 1.45)
-        cam.look(at: SCNVector3(side / 2, 0, side / 2))
+        cam.camera!.fieldOfView = 50
+        // Low, oblique angle so buildings read as a skyline rather than a flat map.
+        cam.position = SCNVector3(side * 0.5, side * 0.5, side * 1.75)
+        cam.look(at: SCNVector3(side / 2, side * 0.08, side / 2))
         root.addChildNode(cam)
     }
 }

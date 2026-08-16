@@ -86,10 +86,11 @@ enum CityModel {
         return CityLayout(nodes: nodes, bounds: rootRect, truncated: truncated)
     }
 
-    /// Building height on a gentle log scale (KB → world units), capped.
+    /// Building height on a log scale (KB → world units), exaggerated so the city reads
+    /// as a skyline. Small files still get a low block; big files tower.
     static func buildingHeight(_ bytes: Int64) -> Double {
-        let kb = Double(max(bytes, 1024)) / 1024
-        return min(42, 0.8 + 2.2 * log10(kb))
+        let kb = Double(max(bytes, 1)) / 1024
+        return min(140, 3 + 9 * log10(kb + 1))
     }
 
     /// Immediate children with sizes: dirs from the index, files from the filesystem.
