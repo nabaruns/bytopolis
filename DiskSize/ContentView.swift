@@ -34,28 +34,19 @@ final class ScanModel: ObservableObject {
     // Assistant
     @Published var showAssistant = false
 
-    /// Metadata-only JSON context for the LLM (no file contents), scoped to the folder the
-    /// user is **currently viewing** — its size, its immediate children, and the reclaimable
-    /// items beneath it — so the assistant reasons about the selected path, not the whole root.
+    /// Metadata-only JSON context for the LLM (no file contents), scoped to **only the folder
+    /// currently in view and its immediate children** — one level, not the whole subtree — so
+    /// the assistant reasons about exactly what the user is looking at.
     func assistantSummaryJSON() -> String? {
-        guard let idx = index else { return nil }
-        let scope = total?.url.path ?? idx.root
+        guard index != nil else { return nil }
+        let scope = total?.url.path ?? index?.root ?? ""
         let now = Date()
 
-        // Reclaimable items under the currently-viewed folder, largest first.
-        let candidates = ReclaimGraph.summary(index: idx).candidates
-            .filter { $0.path == scope || $0.path.hasPrefix(scope + "/") }
-            .prefix(40)
-            .map { c -> [String: Any] in
-                ["path": c.path, "sizeBytes": c.byteSize, "ageDays": c.ageDays as Any,
-                 "category": c.category.name, "reclaim": c.category.reclaim.rawValue]
-            }
-
-        // The immediate children the user is looking at right now.
+        // Only this level's entries (the rows on screen), largest first.
         let listed = children
             .filter(\.sizeKnown)
             .sorted { $0.byteSize > $1.byteSize }
-            .prefix(60)
+            .prefix(80)
             .map { item -> [String: Any] in
                 let age = item.modified.map { Int(now.timeIntervalSince($0) / 86_400) }
                 return ["name": item.name, "sizeBytes": item.byteSize,
@@ -65,11 +56,9 @@ final class ScanModel: ObservableObject {
             }
 
         let payload: [String: Any] = [
-            "root": idx.root,
             "currentPath": scope,
             "currentSizeBytes": total?.byteSize as Any,
-            "children": Array(listed),
-            "candidates": Array(candidates)
+            "children": Array(listed)
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
               let json = String(data: data, encoding: .utf8) else { return "{}" }
