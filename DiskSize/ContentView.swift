@@ -3,7 +3,7 @@ import AppKit
 
 @MainActor
 final class ScanModel: ObservableObject {
-    @Published var targetPath: String = FileManager.default.homeDirectoryForCurrentUser.path
+    @Published var targetPath: String = ""
     @Published var total: DiskItem?
     @Published var children: [DiskItem] = []
     @Published var sizesPending = false     // list is shown, du still computing sizes
@@ -48,14 +48,6 @@ final class ScanModel: ObservableObject {
     private var index: ScanIndex?
     private var scanTask: Task<Void, Never>?
     private var countTask: Task<Void, Never>?
-    private var didAutoScan = false
-
-    /// Scan the default workspace (~) once on launch — instant from cache if scanned before.
-    func autoScanHome() {
-        guard !didAutoScan else { return }
-        didAutoScan = true
-        if total == nil, !targetPath.isEmpty { scan() }
-    }
 
     var sortedChildren: [DiskItem] {
         if sizesPending {
@@ -435,7 +427,7 @@ struct ContentView: View {
             Divider()
             cacheFooter
         }
-        .task { model.refreshCacheStats(); model.autoScanHome() }
+        .task { model.refreshCacheStats() }
         .sheet(isPresented: $model.showReclaim) {
             ReclaimSheet(model: model)
                 .frame(minWidth: 640, minHeight: 460)
