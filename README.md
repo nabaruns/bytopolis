@@ -24,7 +24,11 @@ du -h -d1 ~/some/folder
 ## Cleanup features
 
 - **Reclaim graph (offline):** every entry is classified — npm packages, Xcode DerivedData, app caches, build output, virtualenvs, package stores, Trash, Docker data, containers, vs. keep-these (documents, photos, apps). The **Category** column shows a keep/caution/safe dot; the header shows "Reclaimable here". A **Reclaim** sheet lists everything you can safely clear across the whole tree (with app attribution), lets you **Select Safe**, and batch **Move to Trash** / **Delete Permanently** through the same guarded delete path. All deterministic, no network.
-- **Claude Reclaim Assistant (opt-in):** ask "what can I safely delete?" or "free 10 GB" in plain English. It reasons over a **metadata-only** summary of the scan (paths, sizes, ages, categories — **never file contents**) and answers with specific paths + reasons. Needs your own Anthropic API key (stored in the macOS Keychain); it's strictly **advisory** and never deletes anything — you act via the Reclaim sheet. Model is configurable (default `claude-sonnet-5`).
+- **Reclaim Assistant (opt-in):** ask "what can I safely delete?" or "free 10 GB" in plain English. It reasons over a **metadata-only** summary of the scan (paths, sizes, ages, categories — **never file contents**) and answers with specific paths + reasons. Strictly **advisory** — it never deletes anything; you act via the Reclaim sheet. Two providers, configurable in the sheet:
+  - **Anthropic** — default model `claude-sonnet-5`, key from console.anthropic.com.
+  - **OpenAI-compatible** — any Chat Completions endpoint via configurable **base URL + model**, e.g. **OpenRouter** (`https://openrouter.ai/api/v1`, model like `openai/gpt-4o-mini` or `anthropic/claude-3.5-sonnet`), OpenAI, or a local gateway.
+
+  Each provider's API key is stored separately in the macOS Keychain.
 - **Treemap view:** a **List / Treemap** toggle switches the main area to a squarified treemap of the current folder — tile area ∝ size, colored by reclaimability, click a tile to drill in.
 
 ## Requirements
