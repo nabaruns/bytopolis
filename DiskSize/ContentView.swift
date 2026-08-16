@@ -420,7 +420,7 @@ struct ContentView: View {
     @StateObject private var assistant = AssistantModel()
     @State private var selection: DiskItem.ID?
     @State private var pendingDelete: DiskItem?
-    @State private var mode: BrowseMode = .list
+    @State private var mode: BrowseMode = .city
 
     var body: some View {
         HSplitView {
