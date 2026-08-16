@@ -27,14 +27,16 @@ du -h -d1 ~/some/folder
 - **Reclaim Assistant (opt-in):** ask "what can I safely delete?" or "free 10 GB" in plain English. It reasons over a **metadata-only** summary of the scan (paths, sizes, ages, categories — **never file contents**) and answers with specific paths + reasons. Strictly **advisory** — it never deletes anything; you act via the Reclaim sheet. Two providers, configurable in the sheet:
   - **Anthropic** — default model `claude-sonnet-5`, key from console.anthropic.com.
   - **OpenAI-compatible** — any Chat Completions endpoint via configurable **base URL + model**, e.g. **OpenRouter** (`https://openrouter.ai/api/v1`, model like `openai/gpt-4o-mini` or `anthropic/claude-3.5-sonnet`), OpenAI, or a local gateway.
+  - **Local (on-device)** — runs a small instruct model **entirely on your Mac** via Apple **MLX**, downloaded from Hugging Face (`mlx-community`, default Llama 3.2 3B 4-bit). No API key, no network at inference — **nothing leaves the device**. Requires Apple Silicon; first use downloads ~1–2 GB. Pick a model in settings and press **Download**.
 
-  Each provider's API key is stored separately in the macOS Keychain.
+  Each cloud provider's API key is stored separately in the macOS Keychain. The chat lives in a resizable right-hand **side pane** (toggle with the Assistant toolbar button); provider settings are in its gear **popover**; replies are rendered as **Markdown**.
 - **Treemap view:** a **List / Treemap** toggle switches the main area to a squarified treemap of the current folder — tile area ∝ size, colored by reclaimability, click a tile to drill in.
 
 ## Requirements
 
 - macOS 14 or later
 - **Full Xcode** (not just Command Line Tools) to build/run
+- For the **on-device model**: Apple Silicon and Xcode's **Metal Toolchain** component (`xcodebuild -downloadComponent MetalToolchain`, a one-time ~700 MB download). The MLX Swift package is fetched automatically on first build.
 
 ## Build & run
 
