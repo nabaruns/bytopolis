@@ -68,13 +68,16 @@ enum LLMError: Error, LocalizedError {
 enum LLMClient {
 
     static let systemPrompt = """
-    You are a macOS disk-cleanup advisor inside an app called DiskSize. You are given a \
-    JSON summary of the largest reclaimable directories from a scan: each has a path, \
-    size in bytes, age in days, a category, and a reclaim level (safe | caution | keep). \
-    Help the user free space.
+    You are a macOS disk-cleanup advisor inside an app called Bytopolis. You are given a \
+    JSON context scoped to the folder the user is CURRENTLY viewing. It has: "currentPath" \
+    (the folder in view) and "currentSizeBytes"; "children" (its immediate entries, each \
+    with name, sizeBytes, isDirectory, ageDays, category, reclaim); and "candidates" (the \
+    reclaimable directories beneath it, each with path, sizeBytes, ageDays, category, and a \
+    reclaim level safe | caution | keep). "root" is the scanned root for reference. Focus \
+    your answer on "currentPath" and what's inside it. Help the user free space.
 
     Rules:
-    - Use ONLY the facts in the JSON (path, sizeBytes, ageDays, category, reclaim). Do \
+    - Use ONLY the facts in the JSON (paths, sizeBytes, ageDays, category, reclaim). Do \
     NOT invent descriptions of what a folder contains or which app/project it belongs to. \
     The "category" field already says what each item is (e.g. "npm packages", "Build \
     output") — use that; don't guess beyond it.
@@ -169,6 +172,89 @@ enum LLMClient {
             ? parseAnthropic(data) : parseOpenAI(data)
         guard let text, !text.isEmpty else { throw LLMError.badResponse }
         return text
+    }
+
+    // MARK: - Streaming (Server-Sent Events)
+
+    /// Streams the answer token-by-token via `onToken`, so the chat shows text as it
+    /// arrives instead of a spinner until the whole reply lands. Returns the full text.
+    /// Falls back to a clear error if the endpoint rejects streaming.
+    @discardableResult
+    static func askStream(question: String, summaryJSON: String, config: LLMConfig,
+                          onToken: @escaping (String) -> Void) async throws -> String {
+        guard config.provider != .localMLX else { throw LLMError.badResponse }
+        guard let key = await Keychain.unlockedKey(account: config.provider.keychainAccount) else { throw LLMError.noAPIKey }
+
+        let base = config.baseURL.trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let model = config.model.trimmingCharacters(in: .whitespaces)
+        let path = config.provider == .anthropic ? "/messages" : "/chat/completions"
+        guard let url = URL(string: base + path) else { throw LLMError.badURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+
+        var body: [String: Any]
+        switch config.provider {
+        case .anthropic:
+            request.setValue(key, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            body = anthropicBody(model: model, summaryJSON: summaryJSON, question: question)
+        case .openAICompatible:
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bytopolis", forHTTPHeaderField: "X-Title")
+            body = openAIBody(model: model, summaryJSON: summaryJSON, question: question)
+        case .localMLX:
+            throw LLMError.badResponse
+        }
+        body["stream"] = true
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let bytes: URLSession.AsyncBytes, response: URLResponse
+        do {
+            (bytes, response) = try await URLSession.shared.bytes(for: request)
+        } catch {
+            throw LLMError.transport(error.localizedDescription)
+        }
+        guard let http = response as? HTTPURLResponse else { throw LLMError.badResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            var errBody = ""
+            for try await line in bytes.lines { errBody += line }
+            throw LLMError.http(http.statusCode, errBody)
+        }
+
+        var full = ""
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data:") else { continue }
+            let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+            if payload == "[DONE]" { break }
+            guard let data = payload.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            if let piece = streamDelta(obj, provider: config.provider), !piece.isEmpty {
+                full += piece
+                onToken(piece)
+            }
+        }
+        guard !full.isEmpty else { throw LLMError.badResponse }
+        return full
+    }
+
+    /// Extracts the incremental text from one SSE JSON event for either API shape.
+    private static func streamDelta(_ obj: [String: Any], provider: LLMProvider) -> String? {
+        switch provider {
+        case .anthropic:
+            // {"type":"content_block_delta","delta":{"type":"text_delta","text":"…"}}
+            if let delta = obj["delta"] as? [String: Any], let t = delta["text"] as? String { return t }
+            return nil
+        default:
+            // {"choices":[{"delta":{"content":"…"}}]}
+            if let choices = obj["choices"] as? [[String: Any]],
+               let delta = choices.first?["delta"] as? [String: Any],
+               let t = delta["content"] as? String { return t }
+            return nil
+        }
     }
 
     // MARK: - Response parsing (exposed for testing)

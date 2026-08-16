@@ -17,6 +17,11 @@ final class AssistantModel: ObservableObject {
     @Published var streaming = false
     @Published var errorText: String?
 
+    // Persisted conversation history (resumable across launches).
+    @Published var history: [ChatStore.Conversation] = []
+    private var currentID = UUID()
+    private var createdAt = Date()
+
     // Local-model download state
     @Published var downloading = false
     @Published var downloadProgress = 0.0
@@ -48,6 +53,7 @@ final class AssistantModel: ObservableObject {
         openaiModel = d.string(forKey: "openaiModel") ?? LLMProvider.openAICompatible.defaultModel
         anthropicModel = d.string(forKey: "anthropicModel") ?? LLMProvider.anthropic.defaultModel
         localModelID = d.string(forKey: "localModelID") ?? LocalModelCatalog.defaultID
+        history = ChatStore.all()
     }
 
     var config: LLMConfig {
@@ -79,6 +85,7 @@ final class AssistantModel: ObservableObject {
         messages.append(Message(role: .assistant, text: ""))
         let replyIndex = messages.count - 1
         streaming = true
+        persist()   // save the user turn immediately, before the (possibly slow) reply
 
         let summary = scan?.assistantSummaryJSON() ?? "{}"
         let cfg = config
@@ -93,9 +100,11 @@ final class AssistantModel: ObservableObject {
                         self.messages[replyIndex].text += token
                     }
                 } else {
-                    let answer = try await LLMClient.ask(question: q, summaryJSON: summary, config: cfg)
-                    if !Task.isCancelled, messages.indices.contains(replyIndex) {
-                        messages[replyIndex].text = answer
+                    try await LLMClient.askStream(
+                        question: q, summaryJSON: summary, config: cfg
+                    ) { [weak self] token in
+                        guard let self, self.messages.indices.contains(replyIndex) else { return }
+                        self.messages[replyIndex].text += token
                     }
                 }
             } catch is CancellationError {
@@ -108,6 +117,7 @@ final class AssistantModel: ObservableObject {
                 }
             }
             streaming = false
+            persist()
         }
     }
 
@@ -131,7 +141,56 @@ final class AssistantModel: ObservableObject {
         streaming = false
     }
 
-    func clear() { stop(); messages.removeAll(); errorText = nil }
+    // MARK: - Conversation history (persisted, resumable)
+
+    /// Save the current transcript as a conversation, refreshing the history list.
+    private func persist() {
+        guard !messages.isEmpty else { return }
+        let msgs = messages.map {
+            ChatStore.Conversation.Message(
+                role: $0.role == .user ? .user : .assistant, text: $0.text)
+        }
+        var convo = ChatStore.Conversation(
+            id: currentID, createdAt: createdAt, updatedAt: Date(), messages: msgs)
+        convo.title = ChatStore.Conversation.makeTitle(from: msgs)
+        ChatStore.save(convo)
+        history = ChatStore.all()
+    }
+
+    /// Start a fresh chat, saving the current one first.
+    func newChat() {
+        stop()
+        persist()
+        messages.removeAll()
+        errorText = nil
+        currentID = UUID()
+        createdAt = Date()
+    }
+
+    /// Reopen a saved conversation, saving the current one first.
+    func resume(_ convo: ChatStore.Conversation) {
+        guard convo.id != currentID else { return }
+        stop()
+        persist()
+        currentID = convo.id
+        createdAt = convo.createdAt
+        errorText = nil
+        messages = convo.messages.map {
+            Message(role: $0.role == .user ? .user : .assistant, text: $0.text)
+        }
+    }
+
+    /// Delete a saved conversation; if it's the open one, start fresh.
+    func deleteConversation(_ id: UUID) {
+        ChatStore.delete(id)
+        if id == currentID {
+            messages.removeAll()
+            errorText = nil
+            currentID = UUID()
+            createdAt = Date()
+        }
+        history = ChatStore.all()
+    }
 
     func downloadLocalModel() {
         guard !downloading else { return }

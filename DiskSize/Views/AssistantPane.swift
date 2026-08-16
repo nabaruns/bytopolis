@@ -23,10 +23,10 @@ struct AssistantPane: View {
         HStack(spacing: 8) {
             Label("Assistant", systemImage: "wand.and.stars").font(.headline)
             Spacer()
-            if !assistant.messages.isEmpty {
-                Button { assistant.clear() } label: { Image(systemName: "trash") }
-                    .buttonStyle(.borderless).help("Clear conversation")
-            }
+            historyMenu
+            Button { assistant.newChat() } label: { Image(systemName: "square.and.pencil") }
+                .buttonStyle(.borderless).help("New chat")
+                .disabled(assistant.messages.isEmpty)
             Button { showSettings = true } label: { Image(systemName: "gearshape") }
                 .buttonStyle(.borderless).help("Settings")
                 .popover(isPresented: $showSettings, arrowEdge: .bottom) {
@@ -37,6 +37,37 @@ struct AssistantPane: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 44)
+    }
+
+    /// Dropdown of saved conversations, most-recent first, to resume or delete.
+    private var historyMenu: some View {
+        Menu {
+            if assistant.history.isEmpty {
+                Text("No saved chats").foregroundStyle(.secondary)
+            } else {
+                ForEach(assistant.history) { convo in
+                    Button {
+                        assistant.resume(convo)
+                    } label: {
+                        Text(convo.title)
+                    }
+                }
+                Divider()
+                Menu("Delete") {
+                    ForEach(assistant.history) { convo in
+                        Button(role: .destructive) {
+                            assistant.deleteConversation(convo.id)
+                        } label: { Text(convo.title) }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "clock.arrow.circlepath")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Chat history")
     }
 
     private var transcript: some View {

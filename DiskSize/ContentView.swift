@@ -34,10 +34,46 @@ final class ScanModel: ObservableObject {
     // Assistant
     @Published var showAssistant = false
 
-    /// Metadata-only JSON summary of reclaimable items for the LLM (no file contents).
+    /// Metadata-only JSON context for the LLM (no file contents), scoped to the folder the
+    /// user is **currently viewing** — its size, its immediate children, and the reclaimable
+    /// items beneath it — so the assistant reasons about the selected path, not the whole root.
     func assistantSummaryJSON() -> String? {
         guard let idx = index else { return nil }
-        return ReclaimGraph.summaryJSON(index: idx)
+        let scope = total?.url.path ?? idx.root
+        let now = Date()
+
+        // Reclaimable items under the currently-viewed folder, largest first.
+        let candidates = ReclaimGraph.summary(index: idx).candidates
+            .filter { $0.path == scope || $0.path.hasPrefix(scope + "/") }
+            .prefix(40)
+            .map { c -> [String: Any] in
+                ["path": c.path, "sizeBytes": c.byteSize, "ageDays": c.ageDays as Any,
+                 "category": c.category.name, "reclaim": c.category.reclaim.rawValue]
+            }
+
+        // The immediate children the user is looking at right now.
+        let listed = children
+            .filter(\.sizeKnown)
+            .sorted { $0.byteSize > $1.byteSize }
+            .prefix(60)
+            .map { item -> [String: Any] in
+                let age = item.modified.map { Int(now.timeIntervalSince($0) / 86_400) }
+                return ["name": item.name, "sizeBytes": item.byteSize,
+                        "isDirectory": item.isDirectory, "ageDays": age as Any,
+                        "category": item.category?.name as Any,
+                        "reclaim": item.category?.reclaim.rawValue as Any]
+            }
+
+        let payload: [String: Any] = [
+            "root": idx.root,
+            "currentPath": scope,
+            "currentSizeBytes": total?.byteSize as Any,
+            "children": Array(listed),
+            "candidates": Array(candidates)
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else { return "{}" }
+        return json
     }
 
     /// Reclaimable bytes among the currently listed children (cheap, level-scoped).
