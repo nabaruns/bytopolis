@@ -413,7 +413,7 @@ final class ScanModel: ObservableObject {
     }
 }
 
-enum BrowseMode: String, CaseIterable { case list = "List", treemap = "Treemap", city = "City" }
+enum BrowseMode: String, CaseIterable { case city = "City", treemap = "Treemap", list = "List" }
 
 struct ContentView: View {
     @StateObject private var model = ScanModel()
