@@ -31,6 +31,15 @@ final class ScanModel: ObservableObject {
     @Published var reclaim: ReclaimSummary?
     @Published var reclaimLoading = false
 
+    // Assistant
+    @Published var showAssistant = false
+
+    /// Metadata-only JSON summary of reclaimable items for the LLM (no file contents).
+    func assistantSummaryJSON() -> String? {
+        guard let idx = index else { return nil }
+        return ReclaimGraph.summaryJSON(index: idx)
+    }
+
     /// Reclaimable bytes among the currently listed children (cheap, level-scoped).
     var reclaimableHere: Int64 {
         children.filter { $0.reclaim != .keep && $0.sizeKnown }.reduce(0) { $0 + $1.byteSize }
@@ -420,6 +429,10 @@ struct ContentView: View {
             ReclaimSheet(model: model)
                 .frame(minWidth: 640, minHeight: 460)
         }
+        .sheet(isPresented: $model.showAssistant) {
+            AssistantView(model: model)
+                .frame(minWidth: 620, minHeight: 520)
+        }
         .confirmationDialog(
             "Delete this item?",
             isPresented: Binding(
@@ -488,6 +501,14 @@ struct ContentView: View {
             }
             .disabled(model.total == nil)
             .help("Find caches and build artifacts you can safely delete")
+
+            Button {
+                model.showAssistant = true
+            } label: {
+                Label("Assistant", systemImage: "wand.and.stars")
+            }
+            .disabled(model.total == nil)
+            .help("Ask Claude what's safe to delete (needs an API key)")
         }
         .padding(10)
     }
