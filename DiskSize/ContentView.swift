@@ -410,10 +410,13 @@ final class ScanModel: ObservableObject {
     }
 }
 
+enum BrowseMode: String, CaseIterable { case list = "List", treemap = "Treemap" }
+
 struct ContentView: View {
     @StateObject private var model = ScanModel()
     @State private var selection: DiskItem.ID?
     @State private var pendingDelete: DiskItem?
+    @State private var mode: BrowseMode = .list
 
     var body: some View {
         VStack(spacing: 0) {
@@ -484,6 +487,13 @@ struct ContentView: View {
             TextField("Path to scan", text: $model.targetPath)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { model.scan() }
+
+            Picker("", selection: $mode) {
+                ForEach(BrowseMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+            .help("Switch between the list and treemap")
 
             Button("Rescan") { model.scan(force: true) }
                 .disabled(model.targetPath.isEmpty)
@@ -596,6 +606,9 @@ struct ContentView: View {
                 systemImage: "internaldrive"
             )
             Spacer()
+        } else if mode == .treemap {
+            TreemapView(model: model)
+                .padding(8)
         } else {
             Table(model.sortedChildren, selection: $selection, sortOrder: $model.sortOrder) {
                 TableColumn("Name") { item in
