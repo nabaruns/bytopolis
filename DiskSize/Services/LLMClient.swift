@@ -3,33 +3,39 @@ import Foundation
 enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     case anthropic
     case openAICompatible
+    case localMLX
 
     var id: String { rawValue }
     var label: String {
         switch self {
         case .anthropic: return "Anthropic"
         case .openAICompatible: return "OpenAI-compatible (OpenRouter…)"
+        case .localMLX: return "Local (on-device)"
         }
     }
-    /// Separate Keychain account per provider so switching keeps both keys.
+    /// Separate Keychain account per cloud provider so switching keeps both keys.
     var keychainAccount: String {
         switch self {
         case .anthropic: return "anthropic-api-key"
         case .openAICompatible: return "openai-api-key"
+        case .localMLX: return "unused-local"
         }
     }
     var defaultBaseURL: String {
         switch self {
         case .anthropic: return "https://api.anthropic.com/v1"
         case .openAICompatible: return "https://openrouter.ai/api/v1"
+        case .localMLX: return ""
         }
     }
     var defaultModel: String {
         switch self {
         case .anthropic: return "claude-sonnet-5"
         case .openAICompatible: return "openai/gpt-4o-mini"
+        case .localMLX: return LocalModelCatalog.defaultID
         }
     }
+    var needsAPIKey: Bool { self != .localMLX }
 }
 
 struct LLMConfig {
@@ -112,6 +118,8 @@ enum LLMClient {
     // MARK: - Networking
 
     static func ask(question: String, summaryJSON: String, config: LLMConfig) async throws -> String {
+        // Local models are run by MLXRunner, not this HTTP client.
+        guard config.provider != .localMLX else { throw LLMError.badResponse }
         guard let key = Keychain.get(account: config.provider.keychainAccount) else { throw LLMError.noAPIKey }
 
         let base = config.baseURL.trimmingCharacters(in: .whitespaces)
@@ -135,6 +143,8 @@ enum LLMClient {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
             request.setValue("DiskSize", forHTTPHeaderField: "X-Title")          // OpenRouter attribution
             body = openAIBody(model: model, summaryJSON: summaryJSON, question: question)
+        case .localMLX:
+            throw LLMError.badResponse   // handled by MLXRunner, unreachable here
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

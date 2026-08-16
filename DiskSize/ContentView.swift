@@ -414,11 +414,28 @@ enum BrowseMode: String, CaseIterable { case list = "List", treemap = "Treemap" 
 
 struct ContentView: View {
     @StateObject private var model = ScanModel()
+    @StateObject private var assistant = AssistantModel()
     @State private var selection: DiskItem.ID?
     @State private var pendingDelete: DiskItem?
     @State private var mode: BrowseMode = .list
 
     var body: some View {
+        HSplitView {
+            mainColumn
+                .frame(minWidth: 520)
+            if model.showAssistant {
+                AssistantPane(assistant: assistant, onClose: { model.showAssistant = false })
+                    .frame(minWidth: 300, idealWidth: 360, maxWidth: 680)
+            }
+        }
+        .task { model.refreshCacheStats(); assistant.scan = model }
+        .sheet(isPresented: $model.showReclaim) {
+            ReclaimSheet(model: model)
+                .frame(minWidth: 640, minHeight: 460)
+        }
+    }
+
+    private var mainColumn: some View {
         VStack(spacing: 0) {
             controls
             Divider()
@@ -426,15 +443,6 @@ struct ContentView: View {
             content
             Divider()
             cacheFooter
-        }
-        .task { model.refreshCacheStats() }
-        .sheet(isPresented: $model.showReclaim) {
-            ReclaimSheet(model: model)
-                .frame(minWidth: 640, minHeight: 460)
-        }
-        .sheet(isPresented: $model.showAssistant) {
-            AssistantView(model: model)
-                .frame(minWidth: 620, minHeight: 520)
         }
         .confirmationDialog(
             "Delete this item?",
@@ -513,12 +521,12 @@ struct ContentView: View {
             .help("Find caches and build artifacts you can safely delete")
 
             Button {
-                model.showAssistant = true
+                model.showAssistant.toggle()
             } label: {
                 Label("Assistant", systemImage: "wand.and.stars")
             }
             .disabled(model.total == nil)
-            .help("Ask Claude what's safe to delete (needs an API key)")
+            .help("Ask what's safe to delete (cloud or on-device)")
         }
         .padding(10)
     }
