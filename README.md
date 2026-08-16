@@ -43,18 +43,18 @@ du -h -d1 ~/some/folder
 ## Build & run
 
 ```sh
-open DiskSize.xcodeproj
+open Bytopolis.xcodeproj
 ```
 
 Then press **⌘R** in Xcode.
 
-The app runs **without the App Sandbox** (see `DiskSize/DiskSize.entitlements`) because it execs `du`, `rm`, and `osascript` on arbitrary user-chosen paths. It's a local power-tool, not a Mac App Store submission. Xcode signs it "to run locally" — no developer account needed.
+The app runs **without the App Sandbox** (see `Bytopolis/Bytopolis.entitlements`) because it execs `du`, `rm`, and `osascript` on arbitrary user-chosen paths. It's a local power-tool, not a Mac App Store submission. Xcode signs it "to run locally" — no developer account needed.
 
 ## Layout
 
 ```
-DiskSize/
-  DiskSizeApp.swift          # @main entry
+Bytopolis/
+  BytopolisApp.swift         # @main entry
   ContentView.swift          # the UI + view model
   Models/DiskItem.swift      # one row: url, byteSize, isDirectory
   Services/Shell.swift       # Process runner + admin escalation + quoting

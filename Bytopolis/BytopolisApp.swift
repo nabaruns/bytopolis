@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct DiskSizeApp: App {
+struct BytopolisApp: App {
     var body: some Scene {
         WindowGroup("Bytopolis") {
             ContentView()

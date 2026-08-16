@@ -8,7 +8,7 @@ enum MLXError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notAvailable:
-            return "On-device model support isn't built into this copy of DiskSize yet."
+            return "On-device model support isn't built into this copy of Bytopolis yet."
         case .downloadFailed(let m): return "Model download failed: \(m)"
         case .generateFailed(let m): return "On-device generation failed: \(m)"
         }

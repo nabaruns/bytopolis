@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1A0000000000000000000002"
-               BuildableName = "DiskSize.app"
-               BlueprintName = "DiskSize"
-               ReferencedContainer = "container:DiskSize.xcodeproj">
+               BuildableName = "Bytopolis.app"
+               BlueprintName = "Bytopolis"
+               ReferencedContainer = "container:Bytopolis.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1A0000000000000000000002"
-            BuildableName = "DiskSize.app"
-            BlueprintName = "DiskSize"
-            ReferencedContainer = "container:DiskSize.xcodeproj">
+            BuildableName = "Bytopolis.app"
+            BlueprintName = "Bytopolis"
+            ReferencedContainer = "container:Bytopolis.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1A0000000000000000000002"
-            BuildableName = "DiskSize.app"
-            BlueprintName = "DiskSize"
-            ReferencedContainer = "container:DiskSize.xcodeproj">
+            BuildableName = "Bytopolis.app"
+            BlueprintName = "Bytopolis"
+            ReferencedContainer = "container:Bytopolis.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

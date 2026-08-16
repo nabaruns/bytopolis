@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1A000000000000000000001A /* DiskSizeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000012 /* DiskSizeApp.swift */; };
+		1A000000000000000000001A /* BytopolisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000012 /* BytopolisApp.swift */; };
 		1A000000000000000000001B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000013 /* ContentView.swift */; };
 		1A000000000000000000001C /* DiskItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000014 /* DiskItem.swift */; };
 		1A000000000000000000001D /* Shell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000015 /* Shell.swift */; };
@@ -44,8 +44,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		1A0000000000000000000011 /* DiskSize.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DiskSize.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		1A0000000000000000000012 /* DiskSizeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSizeApp.swift; sourceTree = "<group>"; };
+		1A0000000000000000000011 /* Bytopolis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bytopolis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A0000000000000000000012 /* BytopolisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BytopolisApp.swift; sourceTree = "<group>"; };
 		1A0000000000000000000013 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000014 /* DiskItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskItem.swift; sourceTree = "<group>"; };
 		1A0000000000000000000015 /* Shell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell.swift; sourceTree = "<group>"; };
@@ -77,7 +77,7 @@
 		1A000000000000000000005D /* AgentWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorker.swift; sourceTree = "<group>"; };
 		1A000000000000000000005F /* WorkerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerViews.swift; sourceTree = "<group>"; };
 		1A0000000000000000000018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		1A0000000000000000000019 /* DiskSize.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DiskSize.entitlements; sourceTree = "<group>"; };
+		1A0000000000000000000019 /* Bytopolis.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Bytopolis.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -96,23 +96,23 @@
 		1A000000000000000000000C = {
 			isa = PBXGroup;
 			children = (
-				1A000000000000000000000D /* DiskSize */,
+				1A000000000000000000000D /* Bytopolis */,
 				1A0000000000000000000010 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		1A000000000000000000000D /* DiskSize */ = {
+		1A000000000000000000000D /* Bytopolis */ = {
 			isa = PBXGroup;
 			children = (
-				1A0000000000000000000012 /* DiskSizeApp.swift */,
+				1A0000000000000000000012 /* BytopolisApp.swift */,
 				1A0000000000000000000013 /* ContentView.swift */,
 				1A000000000000000000000E /* Models */,
 				1A000000000000000000000F /* Services */,
 				1A000000000000000000002D /* Views */,
 				1A0000000000000000000018 /* Assets.xcassets */,
-				1A0000000000000000000019 /* DiskSize.entitlements */,
+				1A0000000000000000000019 /* Bytopolis.entitlements */,
 			);
-			path = DiskSize;
+			path = Bytopolis;
 			sourceTree = "<group>";
 		};
 		1A000000000000000000000E /* Models */ = {
@@ -168,7 +168,7 @@
 		1A0000000000000000000010 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				1A0000000000000000000011 /* DiskSize.app */,
+				1A0000000000000000000011 /* Bytopolis.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -176,9 +176,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1A0000000000000000000002 /* DiskSize */ = {
+		1A0000000000000000000002 /* Bytopolis */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1A0000000000000000000007 /* Build configuration list for PBXNativeTarget "DiskSize" */;
+			buildConfigurationList = 1A0000000000000000000007 /* Build configuration list for PBXNativeTarget "Bytopolis" */;
 			buildPhases = (
 				1A0000000000000000000003 /* Sources */,
 				1A0000000000000000000004 /* Frameworks */,
@@ -188,13 +188,13 @@
 			);
 			dependencies = (
 			);
-			name = DiskSize;
+			name = Bytopolis;
 			packageProductDependencies = (
 				1A0000000000000000000051 /* MLXLLM */,
 				1A0000000000000000000052 /* MLXLMCommon */,
 			);
-			productName = DiskSize;
-			productReference = 1A0000000000000000000011 /* DiskSize.app */;
+			productName = Bytopolis;
+			productReference = 1A0000000000000000000011 /* Bytopolis.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -212,7 +212,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 1A0000000000000000000006 /* Build configuration list for PBXProject "DiskSize" */;
+			buildConfigurationList = 1A0000000000000000000006 /* Build configuration list for PBXProject "Bytopolis" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -228,7 +228,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				1A0000000000000000000002 /* DiskSize */,
+				1A0000000000000000000002 /* Bytopolis */,
 			);
 		};
 /* End PBXProject section */
@@ -250,7 +250,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1A000000000000000000001B /* ContentView.swift in Sources */,
-				1A000000000000000000001A /* DiskSizeApp.swift in Sources */,
+				1A000000000000000000001A /* BytopolisApp.swift in Sources */,
 				1A000000000000000000001C /* DiskItem.swift in Sources */,
 				1A000000000000000000001D /* Shell.swift in Sources */,
 				1A000000000000000000001E /* DiskScanner.swift in Sources */,
@@ -339,7 +339,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = DiskSize/DiskSize.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Bytopolis/Bytopolis.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -366,7 +366,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = DiskSize/DiskSize.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Bytopolis/Bytopolis.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -391,7 +391,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		1A0000000000000000000006 /* Build configuration list for PBXProject "DiskSize" */ = {
+		1A0000000000000000000006 /* Build configuration list for PBXProject "Bytopolis" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1A0000000000000000000008 /* Debug */,
@@ -400,7 +400,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1A0000000000000000000007 /* Build configuration list for PBXNativeTarget "DiskSize" */ = {
+		1A0000000000000000000007 /* Build configuration list for PBXNativeTarget "Bytopolis" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1A000000000000000000000A /* Debug */,

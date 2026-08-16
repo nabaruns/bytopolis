@@ -154,7 +154,7 @@ enum LLMClient {
             body = anthropicBody(model: model, summaryJSON: summaryJSON, question: question)
         case .openAICompatible:
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-            request.setValue("DiskSize", forHTTPHeaderField: "X-Title")          // OpenRouter attribution
+            request.setValue("Bytopolis", forHTTPHeaderField: "X-Title")          // OpenRouter attribution
             body = openAIBody(model: model, summaryJSON: summaryJSON, question: question)
         case .localMLX:
             throw LLMError.badResponse   // handled by MLXRunner, unreachable here
