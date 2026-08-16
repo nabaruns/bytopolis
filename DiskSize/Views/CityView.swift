@@ -70,10 +70,16 @@ struct CityView: View {
 
     private var legend: some View {
         HStack(spacing: 10) {
-            swatch(.green, "safe"); swatch(.orange, "caution"); swatch(.secondary, "keep")
+            swatch(.green, "safe"); swatch(.orange, "caution")
+            HStack(spacing: 4) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LinearGradient(colors: [.blue, .teal, .purple, .pink], startPoint: .leading, endPoint: .trailing))
+                    .frame(width: 12, height: 10)
+                Text("by type")
+            }
             HStack(spacing: 4) { Circle().fill(.yellow).frame(width: 9, height: 9); Text("newest") }
             HStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 2).fill(Color(hue: 0.75, saturation: 0.5, brightness: 0.7)).frame(width: 10, height: 10)
+                RoundedRectangle(cornerRadius: 2).fill(Color(red: 0.49, green: 0.36, blue: 0.84)).frame(width: 10, height: 10)
                 Text("repo")
             }
         }

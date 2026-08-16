@@ -13,7 +13,7 @@ enum CityScene {
 
         // Ground.
         let floor = SCNBox(width: side + 10, height: 1, length: side + 10, chamferRadius: 0)
-        floor.firstMaterial?.diffuse.contents = NSColor(calibratedWhite: 0.14, alpha: 1)
+        floor.firstMaterial?.diffuse.contents = NSColor(calibratedRed: 0.10, green: 0.11, blue: 0.15, alpha: 1)
         let floorNode = SCNNode(geometry: floor)
         floorNode.position = SCNVector3(Float(side / 2), -0.5, Float(side / 2))
         root.addChildNode(floorNode)
@@ -41,7 +41,7 @@ enum CityScene {
                                  length: max(0.4, l - inset), chamferRadius: 0)
                 let mat = SCNMaterial()
                 mat.diffuse.contents = buildingColor(n)
-                if n.isRecent { mat.emission.contents = glowColor(n) }
+                mat.emission.contents = n.isRecent ? glowColor(n) : emissionColor(n)
                 box.materials = [mat]
                 let node = SCNNode(geometry: box)
                 node.position = SCNVector3(cx, baseY + 0.6 + Float(h) / 2, cz)
@@ -59,35 +59,47 @@ enum CityScene {
 
     // MARK: - Colors
 
-    private static func base(_ cat: ReclaimCategory?) -> NSColor {
-        switch cat?.reclaim ?? .keep {
-        case .keep:    return NSColor(calibratedHue: 0.58, saturation: 0.22, brightness: 0.78, alpha: 1)
-        case .caution: return NSColor(calibratedHue: 0.08, saturation: 0.70, brightness: 0.92, alpha: 1)
-        case .safe:    return NSColor(calibratedHue: 0.38, saturation: 0.60, brightness: 0.85, alpha: 1)
+    private static func hex(_ v: Int) -> NSColor {
+        NSColor(calibratedRed: CGFloat((v >> 16) & 0xFF) / 255,
+                green: CGFloat((v >> 8) & 0xFF) / 255,
+                blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+    }
+
+    /// Curated palette for file "buildings" (picked by extension) — vivid but cohesive.
+    private static let palette: [NSColor] = [
+        hex(0x4C9AFF), hex(0x2BD9C8), hex(0x9F7AEA), hex(0xF6AD55),
+        hex(0xF56565), hex(0x48BB78), hex(0xED64A6), hex(0x38B2AC),
+        hex(0xECC94B), hex(0x667EEA), hex(0xFC8181), hex(0x81E6D9)
+    ]
+
+    private static func buildingColor(_ n: CityNode) -> NSColor {
+        switch n.category?.reclaim {
+        case .safe:    return hex(0x48BB78)   // green — matches legend
+        case .caution: return hex(0xF6AD55)   // amber
+        default:
+            let ext = (n.name as NSString).pathExtension.lowercased()
+            if ext.isEmpty { return hex(0x9AA5B1) }   // concrete
+            let seed = ext.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0x7FFFFFFF }
+            return palette[seed % palette.count]
         }
     }
 
-    private static func buildingColor(_ n: CityNode) -> NSColor {
-        // Reclaimable files use the category color; everything else gets a stable,
-        // muted hue from its file extension so the skyline is varied, not all grey.
-        if let c = n.category, c.reclaim != .keep { return base(c) }
-        let ext = (n.name as NSString).pathExtension.lowercased()
-        if ext.isEmpty { return NSColor(calibratedWhite: 0.72, alpha: 1) }
-        let seed = ext.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFFFF }
-        let hue = Double(seed % 360) / 360.0
-        return NSColor(calibratedHue: CGFloat(hue), saturation: 0.38, brightness: 0.78, alpha: 1)
+    private static func glowColor(_ n: CityNode) -> NSColor {
+        buildingColor(n).blended(withFraction: 0.55, of: .white) ?? .white
     }
 
-    private static func glowColor(_ n: CityNode) -> NSColor {
-        base(n.category).blended(withFraction: 0.5, of: .white) ?? .white
+    /// Subtle self-illumination so buildings read as a lit night city.
+    private static func emissionColor(_ n: CityNode) -> NSColor {
+        buildingColor(n).blended(withFraction: 0.8, of: .black) ?? .black
     }
 
     private static func plotColor(_ n: CityNode) -> NSColor {
         if n.kind == .facility {
-            return NSColor(calibratedHue: 0.75, saturation: 0.45, brightness: 0.5, alpha: 1)
+            return hex(0x7C5CD6)   // violet plot for repos
         }
-        let shade = 0.13 + Double(n.depth % 3) * 0.04
-        return NSColor(calibratedWhite: shade, alpha: 1)
+        // Cool slate districts, lightening a touch with depth.
+        let base = 0.17 + Double(n.depth % 3) * 0.05
+        return NSColor(calibratedRed: base * 0.9, green: base, blue: base * 1.25, alpha: 1)
     }
 
     // MARK: - Facility walls + beacon
@@ -132,13 +144,14 @@ enum CityScene {
     private static func addLighting(to root: SCNNode) {
         let ambient = SCNNode(); ambient.light = SCNLight()
         ambient.light!.type = .ambient
-        ambient.light!.intensity = 350
-        ambient.light!.color = NSColor(calibratedWhite: 0.7, alpha: 1)
+        ambient.light!.intensity = 550
+        ambient.light!.color = NSColor(calibratedRed: 0.62, green: 0.66, blue: 0.78, alpha: 1)  // cool fill
         root.addChildNode(ambient)
 
         let dir = SCNNode(); dir.light = SCNLight()
         dir.light!.type = .directional
-        dir.light!.intensity = 900
+        dir.light!.intensity = 1100
+        dir.light!.color = NSColor(calibratedRed: 1.0, green: 0.96, blue: 0.9, alpha: 1)          // warm key
         dir.light!.castsShadow = true
         dir.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 4, 0)
         root.addChildNode(dir)
