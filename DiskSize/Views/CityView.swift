@@ -148,8 +148,12 @@ struct CityView: View {
         }
         .padding(12)
         .frame(width: 320, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .shadow(radius: 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .windowBackgroundColor))          // opaque → reliable contrast
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary))
+        )
+        .shadow(radius: 12)
     }
 
     private func icon(for node: CityNode) -> String {
