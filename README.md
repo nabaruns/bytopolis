@@ -31,6 +31,7 @@ du -h -d1 ~/some/folder
 
   Each cloud provider's API key is stored separately in the macOS Keychain. The chat lives in a resizable right-hand **side pane** (toggle with the Assistant toolbar button); provider settings are in its gear **popover**; replies are rendered as **Markdown**.
 - **Treemap view:** a **List / Treemap** toggle switches the main area to a squarified treemap of the current folder — tile area ∝ size, colored by reclaimability, click a tile to drill in.
+- **3D city ("software city"):** the **City** view mode renders the folder as an explorable 3D city (SceneKit) — directories are districts, files are buildings whose height ∝ size, colored by reclaimability; the **most-recently-modified** items glow with a beacon over the newest; **git repos become walled "facilities"** with a branch/remote info panel. Orbit/zoom with the mouse; click any building/district/facility for details, Open, or Reveal in Finder. (Attaching a Claude/Codex **worker** to a repo facility is the next step.)
 
 ## Requirements
 

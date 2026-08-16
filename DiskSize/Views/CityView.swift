@@ -1,0 +1,203 @@
+import SwiftUI
+import SceneKit
+import AppKit
+
+/// The 3D "software city" view. Builds the layout off the main thread, renders it with
+/// SceneKit, and shows an info panel for the clicked district/building/facility.
+struct CityView: View {
+    @ObservedObject var model: ScanModel
+
+    @State private var scene: SCNScene?
+    @State private var layout: CityLayout?
+    @State private var building = false
+    @State private var selectedPath: String?
+
+    private var selected: CityNode? {
+        guard let p = selectedPath else { return nil }
+        return layout?.nodes.first { $0.id == p }
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if let scene {
+                SceneKitView(scene: scene) { selectedPath = $0 }
+            } else {
+                Color(nsColor: .textBackgroundColor)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                legend
+                if layout?.truncated == true {
+                    Label("Large tree — city truncated for performance", systemImage: "scissors")
+                        .font(.caption).padding(6)
+                        .background(.thinMaterial, in: Capsule())
+                }
+            }
+            .padding(10)
+
+            if building {
+                ProgressView("Building city…")
+                    .padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            if let node = selected {
+                infoPanel(node)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(12)
+            }
+        }
+        .task(id: model.targetPath) { await rebuild() }
+    }
+
+    // MARK: - Build
+
+    private func rebuild() async {
+        let root = DiskScanner.standardize(model.targetPath.trimmingCharacters(in: .whitespaces))
+        guard !root.isEmpty else { scene = nil; layout = nil; return }
+        building = true
+        selectedPath = nil
+        let idx = model.currentIndex
+        let built = await Task.detached(priority: .userInitiated) {
+            CityModel.build(root: root, index: idx, now: Date())
+        }.value
+        layout = built
+        scene = CityScene.make(from: built)   // fast; nodes only
+        building = false
+    }
+
+    // MARK: - Overlays
+
+    private var legend: some View {
+        HStack(spacing: 10) {
+            swatch(.green, "safe"); swatch(.orange, "caution"); swatch(.secondary, "keep")
+            HStack(spacing: 4) { Circle().fill(.yellow).frame(width: 9, height: 9); Text("newest") }
+            HStack(spacing: 4) {
+                RoundedRectangle(cornerRadius: 2).fill(Color(hue: 0.75, saturation: 0.5, brightness: 0.7)).frame(width: 10, height: 10)
+                Text("repo")
+            }
+        }
+        .font(.caption2)
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(.thinMaterial, in: Capsule())
+    }
+
+    private func swatch(_ c: Color, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 10, height: 10)
+            Text(label)
+        }
+    }
+
+    private func infoPanel(_ node: CityNode) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon(for: node)).foregroundStyle(color(for: node))
+                Text(node.name).font(.headline).lineLimit(1)
+                Spacer()
+                Button { selectedPath = nil } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.borderless).foregroundStyle(.secondary)
+            }
+            Text(node.id).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            HStack(spacing: 10) {
+                Text(ByteCountFormatter.string(fromByteCount: node.byteSize, countStyle: .file)).bold()
+                if let c = node.category, c.reclaim != .keep {
+                    Text(c.name).font(.caption).foregroundStyle(c.reclaim.color)
+                }
+                if let m = node.mtime {
+                    Text(m.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            if let git = node.git {
+                Divider()
+                HStack(spacing: 8) {
+                    Image(systemName: "point.3.filled.connected.trianglepath.dotted")
+                    Text(git.branch ?? "—").font(.callout)
+                    if git.isGitHub {
+                        Text("GitHub").font(.caption2).padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }
+                if let url = git.remoteURL {
+                    Text(url).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                }
+                Button {
+                    // Phase 2: attach a Claude/Codex worker to this repo facility.
+                } label: {
+                    Label("Start worker (soon)", systemImage: "person.fill.badge.plus")
+                }
+                .disabled(true)
+                .help("Attach a Claude/Codex session to this repo — coming in the next build")
+            }
+
+            HStack {
+                if node.kind != .building {
+                    Button("Open") { model.targetPath = node.id; model.scan() }
+                }
+                Button("Reveal in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: node.id)])
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: 320, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .shadow(radius: 8)
+    }
+
+    private func icon(for node: CityNode) -> String {
+        switch node.kind {
+        case .facility: return "shippingbox.fill"
+        case .district: return "folder.fill"
+        case .building: return "building.2.fill"
+        }
+    }
+    private func color(for node: CityNode) -> Color {
+        node.kind == .facility
+            ? Color(hue: 0.75, saturation: 0.5, brightness: 0.7)
+            : (node.category?.reclaim ?? .keep).color
+    }
+}
+
+/// SwiftUI wrapper around SCNView with camera control + click hit-testing.
+private struct SceneKitView: NSViewRepresentable {
+    let scene: SCNScene
+    let onSelect: (String) -> Void
+
+    func makeNSView(context: Context) -> SCNView {
+        let view = SCNView()
+        view.allowsCameraControl = true
+        view.antialiasingMode = .multisampling4X
+        view.autoenablesDefaultLighting = false
+        view.backgroundColor = .black
+        let click = NSClickGestureRecognizer(target: context.coordinator,
+                                             action: #selector(Coordinator.handleClick(_:)))
+        view.addGestureRecognizer(click)
+        context.coordinator.view = view
+        view.scene = scene
+        return view
+    }
+
+    func updateNSView(_ view: SCNView, context: Context) {
+        context.coordinator.onSelect = onSelect
+        if view.scene !== scene { view.scene = scene }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(onSelect: onSelect) }
+
+    final class Coordinator: NSObject {
+        weak var view: SCNView?
+        var onSelect: (String) -> Void
+        init(onSelect: @escaping (String) -> Void) { self.onSelect = onSelect }
+
+        @objc func handleClick(_ g: NSClickGestureRecognizer) {
+            guard let view else { return }
+            let p = g.location(in: view)
+            let hits = view.hitTest(p, options: [.searchMode: SCNHitTestSearchMode.closest.rawValue])
+            if let name = hits.first?.node.name ?? hits.first?.node.parent?.name {
+                onSelect(name)
+            }
+        }
+    }
+}

@@ -64,6 +64,9 @@ final class ScanModel: ObservableObject {
 
     func item(id: DiskItem.ID) -> DiskItem? { children.first { $0.id == id } }
 
+    /// Snapshot of the active index (for the 3D city builder, which runs off-main).
+    var currentIndex: ScanIndex? { index }
+
     // MARK: - Navigation
 
     func chooseTarget() {
@@ -410,7 +413,7 @@ final class ScanModel: ObservableObject {
     }
 }
 
-enum BrowseMode: String, CaseIterable { case list = "List", treemap = "Treemap" }
+enum BrowseMode: String, CaseIterable { case list = "List", treemap = "Treemap", city = "City" }
 
 struct ContentView: View {
     @StateObject private var model = ScanModel()
@@ -619,6 +622,8 @@ struct ContentView: View {
         } else if mode == .treemap {
             TreemapView(model: model)
                 .padding(8)
+        } else if mode == .city {
+            CityView(model: model)
         } else {
             Table(model.sortedChildren, selection: $selection, sortOrder: $model.sortOrder) {
                 TableColumn("Name") { item in
