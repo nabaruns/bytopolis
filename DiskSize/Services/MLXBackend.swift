@@ -35,7 +35,11 @@ enum MLXBackend {
 
         let stream: AsyncStream<Generation> = try await modelContainer.perform { context in
             let lmInput = try await context.processor.prepare(input: userInput)
-            let parameters = GenerateParameters(temperature: 0.6)
+            // Low temperature + repetition penalty + a token cap keep small on-device models
+            // grounded in the JSON facts instead of inventing files or rambling.
+            var parameters = GenerateParameters(temperature: 0.2, topP: 0.9)
+            parameters.maxTokens = 900
+            parameters.repetitionPenalty = 1.1
             return try MLXLMCommon.generate(input: lmInput, parameters: parameters, context: context)
         }
 

@@ -45,11 +45,18 @@ final class MLXRunner {
                   modelID: String,
                   onToken: @escaping (String) -> Void) async throws {
         let system = LLMClient.systemPrompt
+        // Small on-device models drift, so we repeat the hard constraint right next to the
+        // data: only ever name paths/files that literally appear in the JSON below.
         let user = """
-        Reclaimable scan summary (JSON):
+        Here is the JSON context for the folder the user is viewing. Every path and file name \
+        you mention MUST appear verbatim in this JSON — do NOT invent file names.
+
         \(summaryJSON)
 
         Question: \(question)
+
+        Answer using only the entries above. Give exact names/paths and sizes, and don't \
+        make up files that aren't listed.
         """
         try await MLXBackend.generate(modelID: modelID, system: system, user: user, onToken: onToken)
     }

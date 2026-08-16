@@ -9,6 +9,8 @@ struct LocalModel: Identifiable, Hashable {
 
 enum LocalModelCatalog {
     static let models: [LocalModel] = [
+        LocalModel(id: "mlx-community/Qwen2.5-3B-Instruct-4bit",
+                   name: "Qwen2.5 · 3B Instruct (4-bit) — best grounded", approxSize: "~1.8 GB"),
         LocalModel(id: "mlx-community/Llama-3.2-3B-Instruct-4bit",
                    name: "Llama 3.2 · 3B Instruct (4-bit)", approxSize: "~1.8 GB"),
         LocalModel(id: "mlx-community/Llama-3.2-1B-Instruct-4bit",
