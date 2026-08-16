@@ -6,13 +6,10 @@ import AppKit
 /// the single most-recently-modified "entry". Each node carries its path in `name` for
 /// hit-testing.
 enum CityScene {
-    static let maxLabels = 320
-
     static func make(from layout: CityLayout) -> SCNScene {
         let scene = SCNScene()
         let root = scene.rootNode
         let side = CGFloat(layout.bounds.width)
-        var labelCount = 0
 
         // Ground.
         let floor = SCNBox(width: side + 10, height: 1, length: side + 10, chamferRadius: 0)
@@ -36,14 +33,6 @@ enum CityScene {
                 node.name = n.id
                 root.addChildNode(node)
                 if n.kind == .facility { addWalls(to: root, rect: n.rect, baseY: baseY + Float(plotH)) }
-                // Label centered on the district; big top-level ones read from far, smaller
-                // nested ones fade in as you zoom in (distance LOD).
-                if min(w, l) > 6, labelCount < maxLabels {
-                    addLabel(n.name, id: n.id, to: root,
-                             at: SCNVector3(cx, baseY + Float(plotH) + 3, cz),
-                             side: Float(min(w, l)))
-                    labelCount += 1
-                }
 
             case .building:
                 let h = CGFloat(max(0.6, n.height))
@@ -60,11 +49,6 @@ enum CityScene {
                 root.addChildNode(node)
                 let topY = baseY + 0.6 + Float(h)
                 if n.isEntry { addBeacon(to: root, x: cx, y: topY + 5, z: cz) }
-                if min(w, l) > 6, labelCount < maxLabels {
-                    addLabel(n.name, id: n.id, to: root,
-                             at: SCNVector3(cx, topY + 2.5, cz), side: Float(min(w, l)))
-                    labelCount += 1
-                }
             }
         }
 
@@ -142,39 +126,6 @@ enum CityScene {
     /// A billboarded name tag above a node. Carries the node's path in `name` so a click
     /// on the label selects the same node. Kept to the larger nodes (and capped) to avoid
     /// clutter and geometry cost.
-    /// Billboarded name tag. `side` is the node's footprint side — bigger nodes get larger
-    /// text and stay visible from farther; smaller (deeper) nodes fade in only as the
-    /// camera gets close, so there's no text-over-text at a distance.
-    private static func addLabel(_ text: String, id: String, to root: SCNNode,
-                                 at pos: SCNVector3, side: Float) {
-        let scnText = SCNText(string: String(text.prefix(24)), extrusionDepth: 0)
-        scnText.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
-        scnText.flatness = 0.5
-        let mat = SCNMaterial()
-        mat.diffuse.contents = NSColor.white
-        mat.emission.contents = NSColor.white
-        mat.isDoubleSided = true
-        scnText.materials = [mat]
-
-        // Hide beyond a distance that scales with the node's size.
-        let hideDistance = CGFloat(side) * 7 + 30
-        scnText.levelsOfDetail = [SCNLevelOfDetail(geometry: nil, worldSpaceDistance: hideDistance)]
-
-        let node = SCNNode(geometry: scnText)
-        let (minB, maxB) = scnText.boundingBox
-        node.pivot = SCNMatrix4MakeTranslation((minB.x + maxB.x) / 2,
-                                               (minB.y + maxB.y) / 2,
-                                               (minB.z + maxB.z) / 2)
-        let s = max(0.32, min(0.95, side * 0.013 + 0.28))   // bigger area → bigger label
-        node.scale = SCNVector3(s, s, s)
-        node.position = pos
-        node.name = id
-        let billboard = SCNBillboardConstraint()
-        billboard.freeAxes = .Y
-        node.constraints = [billboard]
-        root.addChildNode(node)
-    }
-
     private static func addBeacon(to root: SCNNode, x: Float, y: Float, z: Float) {
         let sphere = SCNSphere(radius: 1.6)
         let mat = SCNMaterial()

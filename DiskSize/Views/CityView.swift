@@ -32,6 +32,7 @@ struct CityView: View {
                         .font(.caption).padding(6)
                         .background(.thinMaterial, in: Capsule())
                 }
+                sideList
             }
             .padding(10)
 
@@ -86,6 +87,47 @@ struct CityView: View {
         .font(.caption2)
         .padding(.horizontal, 8).padding(.vertical, 5)
         .background(.thinMaterial, in: Capsule())
+    }
+
+    /// The current level's neighborhoods listed on the side — names live here instead of
+    /// floating over the 3D city (which overlapped). Click a row to select it in the scene.
+    private var sideList: some View {
+        let items = (layout?.nodes.filter { $0.depth == 0 } ?? []).sorted { $0.byteSize > $1.byteSize }
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("This level").font(.caption2).foregroundStyle(.secondary)
+                .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 2)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(items) { n in
+                        Button { selectedPath = n.id } label: {
+                            HStack(spacing: 6) {
+                                if n.kind == .facility {
+                                    Image(systemName: "shippingbox.fill").font(.caption2)
+                                        .foregroundStyle(Color(red: 0.49, green: 0.36, blue: 0.84))
+                                } else {
+                                    Circle().fill(color(for: n)).frame(width: 8, height: 8)
+                                }
+                                Text(n.name).font(.caption).lineLimit(1)
+                                Spacer(minLength: 6)
+                                Text(ByteCountFormatter.string(fromByteCount: n.byteSize, countStyle: .file))
+                                    .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+                            }
+                            .padding(.vertical, 3).padding(.horizontal, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(selectedPath == n.id ? Color.accentColor.opacity(0.25) : .clear,
+                                        in: RoundedRectangle(cornerRadius: 5))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 4).padding(.bottom, 6)
+            }
+        }
+        .frame(width: 236)
+        .frame(maxHeight: 360)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .windowBackgroundColor).opacity(0.94)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary))
     }
 
     private func swatch(_ c: Color, _ label: String) -> some View {
