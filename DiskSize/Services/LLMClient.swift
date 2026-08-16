@@ -125,7 +125,7 @@ enum LLMClient {
     static func ask(question: String, summaryJSON: String, config: LLMConfig) async throws -> String {
         // Local models are run by MLXRunner, not this HTTP client.
         guard config.provider != .localMLX else { throw LLMError.badResponse }
-        guard let key = Keychain.get(account: config.provider.keychainAccount) else { throw LLMError.noAPIKey }
+        guard let key = await Keychain.unlockedKey(account: config.provider.keychainAccount) else { throw LLMError.noAPIKey }
 
         let base = config.baseURL.trimmingCharacters(in: .whitespaces)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
