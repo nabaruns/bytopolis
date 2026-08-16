@@ -12,6 +12,12 @@ struct CityView: View {
     @State private var building = false
     @State private var selectedPath: String?
 
+    // Workers (Phase 2)
+    @StateObject private var workers = WorkerStore()
+    @State private var configNode: CityNode?
+    @State private var activeWorker: AgentWorker?
+    @State private var avatars: [UUID: SCNNode] = [:]
+
     private var selected: CityNode? {
         guard let p = selectedPath else { return nil }
         return layout?.nodes.first { $0.id == p }
@@ -42,13 +48,58 @@ struct CityView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            if let node = selected {
+            if let node = selected, activeWorker == nil {
                 infoPanel(node)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(12)
             }
+
+            if let worker = activeWorker {
+                WorkerPanel(worker: worker) {
+                    workers.remove(worker)
+                    removeAvatar(worker.id)
+                    activeWorker = nil
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                .padding(12)
+            }
         }
         .task(id: model.targetPath) { await rebuild() }
+        .sheet(item: $configNode) { node in
+            WorkerConfigView(repoName: node.name, repoPath: node.id) { agent, mode, task in
+                let worker = workers.start(repoPath: node.id, agent: agent, mode: mode, task: task)
+                activeWorker = worker
+                addAvatar(for: node, worker: worker)
+            }
+        }
+    }
+
+    // MARK: - Worker avatars (a bobbing marker over an active repo facility)
+
+    private func addAvatar(for node: CityNode, worker: AgentWorker) {
+        guard let scene else { return }
+        let sphere = SCNSphere(radius: 2)
+        let mat = SCNMaterial()
+        mat.diffuse.contents = NSColor.systemOrange
+        mat.emission.contents = NSColor.systemOrange
+        sphere.materials = [mat]
+        let avatar = SCNNode(geometry: sphere)
+        avatar.name = node.id
+        let baseY = Float(node.depth) * 1.4
+        avatar.position = SCNVector3(Float(node.rect.midX), baseY + 11, Float(node.rect.midY))
+        let light = SCNLight(); light.type = .omni; light.color = NSColor.systemOrange; light.intensity = 500
+        avatar.light = light
+        avatar.runAction(.repeatForever(.sequence([
+            .moveBy(x: 0, y: 2.5, z: 0, duration: 0.7),
+            .moveBy(x: 0, y: -2.5, z: 0, duration: 0.7)
+        ])))
+        scene.rootNode.addChildNode(avatar)
+        avatars[worker.id] = avatar
+    }
+
+    private func removeAvatar(_ id: UUID) {
+        avatars[id]?.removeFromParentNode()
+        avatars[id] = nil
     }
 
     // MARK: - Build
@@ -171,12 +222,12 @@ struct CityView: View {
                     Text(url).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 }
                 Button {
-                    // Phase 2: attach a Claude/Codex worker to this repo facility.
+                    configNode = node
                 } label: {
-                    Label("Start worker (soon)", systemImage: "person.fill.badge.plus")
+                    Label(workers.running(forRepo: node.id) ? "Worker running…" : "Start worker",
+                          systemImage: "person.fill.badge.plus")
                 }
-                .disabled(true)
-                .help("Attach a Claude/Codex session to this repo — coming in the next build")
+                .help("Attach a Claude/Codex session to this repo (headless)")
             }
 
             HStack {

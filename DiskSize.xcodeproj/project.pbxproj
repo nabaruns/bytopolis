@@ -36,6 +36,8 @@
 		1A0000000000000000000058 /* CityModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000057 /* CityModel.swift */; };
 		1A000000000000000000005A /* CityScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000059 /* CityScene.swift */; };
 		1A000000000000000000005C /* CityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000005B /* CityView.swift */; };
+		1A000000000000000000005E /* AgentWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000005D /* AgentWorker.swift */; };
+		1A0000000000000000000060 /* WorkerViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000005F /* WorkerViews.swift */; };
 		1A0000000000000000000053 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000051 /* MLXLLM */; };
 		1A0000000000000000000054 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000052 /* MLXLMCommon */; };
 /* End PBXBuildFile section */
@@ -70,6 +72,8 @@
 		1A0000000000000000000057 /* CityModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityModel.swift; sourceTree = "<group>"; };
 		1A0000000000000000000059 /* CityScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityScene.swift; sourceTree = "<group>"; };
 		1A000000000000000000005B /* CityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityView.swift; sourceTree = "<group>"; };
+		1A000000000000000000005D /* AgentWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorker.swift; sourceTree = "<group>"; };
+		1A000000000000000000005F /* WorkerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerViews.swift; sourceTree = "<group>"; };
 		1A0000000000000000000018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A0000000000000000000019 /* DiskSize.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DiskSize.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -135,6 +139,7 @@
 				1A0000000000000000000048 /* MLXBackend.swift */,
 				1A0000000000000000000055 /* GitInfo.swift */,
 				1A0000000000000000000057 /* CityModel.swift */,
+				1A000000000000000000005D /* AgentWorker.swift */,
 				1A0000000000000000000038 /* Squarify.swift */,
 				1A0000000000000000000017 /* Deleter.swift */,
 			);
@@ -152,6 +157,7 @@
 				1A0000000000000000000042 /* AssistantPane.swift */,
 				1A0000000000000000000059 /* CityScene.swift */,
 				1A000000000000000000005B /* CityView.swift */,
+				1A000000000000000000005F /* WorkerViews.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -267,6 +273,8 @@
 				1A0000000000000000000058 /* CityModel.swift in Sources */,
 				1A000000000000000000005A /* CityScene.swift in Sources */,
 				1A000000000000000000005C /* CityView.swift in Sources */,
+				1A000000000000000000005E /* AgentWorker.swift in Sources */,
+				1A0000000000000000000060 /* WorkerViews.swift in Sources */,
 				1A000000000000000000001F /* Deleter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
