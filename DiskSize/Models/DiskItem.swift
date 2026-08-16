@@ -12,6 +12,7 @@ struct DiskItem: Identifiable, Hashable {
     let sizeKnown: Bool
     let modified: Date?
     let created: Date?
+    let category: ReclaimCategory?
 
     /// Path is a stable identity, so selection survives the phase-1 → phase-2 swap.
     var id: String { url.path }
@@ -19,14 +20,19 @@ struct DiskItem: Identifiable, Hashable {
     var path: String { url.path }
 
     init(url: URL, byteSize: Int64, isDirectory: Bool, sizeKnown: Bool = true,
-         modified: Date? = nil, created: Date? = nil) {
+         modified: Date? = nil, created: Date? = nil, category: ReclaimCategory? = nil) {
         self.url = url
         self.byteSize = byteSize
         self.isDirectory = isDirectory
         self.sizeKnown = sizeKnown
         self.modified = modified
         self.created = created
+        self.category = category
     }
+
+    var reclaim: Reclaimability { category?.reclaim ?? .keep }
+    var categoryText: String { category?.name ?? "—" }
+    var categorySort: Int { (category?.reclaim.priority ?? 3) }
 
     /// Human-readable size, e.g. "1.2 GB" — the `-h` style, formatted in-app.
     /// Returns "—" while the size is still being computed.

@@ -26,6 +26,16 @@ final class ScanModel: ObservableObject {
     @Published var cacheBytes: Int64 = 0
     @Published var cacheCount: Int = 0
 
+    // Reclaim
+    @Published var showReclaim = false
+    @Published var reclaim: ReclaimSummary?
+    @Published var reclaimLoading = false
+
+    /// Reclaimable bytes among the currently listed children (cheap, level-scoped).
+    var reclaimableHere: Int64 {
+        children.filter { $0.reclaim != .keep && $0.sizeKnown }.reduce(0) { $0 + $1.byteSize }
+    }
+
     private var index: ScanIndex?
     private var scanTask: Task<Void, Never>?
     private var countTask: Task<Void, Never>?
@@ -149,6 +159,7 @@ final class ScanModel: ObservableObject {
                 index = idx
                 present(path: path, from: idx, servedFromIndex: false)
                 persist(idx)
+                if showReclaim { loadReclaim() }
             case .failure(let error):
                 errorMessage = error.localizedDescription
                 // Keep the phase-1 listing so the user still sees the folder.
@@ -214,16 +225,17 @@ final class ScanModel: ObservableObject {
                 let isDirectory = vals?.isDirectory ?? false
                 let modified = vals?.contentModificationDate
                 let created = vals?.creationDate
+                let cat = ReclaimRules.classify(url: url, isDirectory: isDirectory)
                 if isDirectory {
                     let size = idx.dirSize(url.path)
                     items.append(DiskItem(url: url, byteSize: size ?? 0,
                                           isDirectory: true, sizeKnown: size != nil,
-                                          modified: modified, created: created))
+                                          modified: modified, created: created, category: cat))
                 } else {
                     let bytes = vals?.totalFileAllocatedSize ?? vals?.fileAllocatedSize ?? 0
                     items.append(DiskItem(url: url, byteSize: Int64(bytes),
                                           isDirectory: false, sizeKnown: true,
-                                          modified: modified, created: created))
+                                          modified: modified, created: created, category: cat))
                 }
             }
         }
@@ -275,6 +287,49 @@ final class ScanModel: ObservableObject {
         }
     }
 
+    // MARK: - Reclaim
+
+    /// Compute the reclaimable summary over the whole active index, off the main thread.
+    func loadReclaim() {
+        guard let idx = index else { reclaim = nil; return }
+        reclaimLoading = true
+        Task {
+            let summary = await Task.detached(priority: .userInitiated) {
+                ReclaimGraph.summary(index: idx)
+            }.value
+            reclaimLoading = false
+            reclaim = summary
+        }
+    }
+
+    /// Batch-delete reclaim candidates, then rebuild the index and refresh the sheet.
+    func deleteCandidates(_ items: [ReclaimCandidate], mode: DeleteMode) {
+        errorMessage = nil
+        Task {
+            let failures = await Task.detached(priority: .userInitiated) { () -> [String] in
+                var fails: [String] = []
+                for it in items {
+                    do {
+                        switch mode {
+                        case .trash:     try Deleter.moveToTrash(path: it.path)
+                        case .permanent: try Deleter.remove(path: it.path)
+                        case .admin:     try Deleter.removeAsAdmin(path: it.path)
+                        }
+                    } catch {
+                        fails.append(it.name + ": " + error.localizedDescription)
+                    }
+                }
+                return fails
+            }.value
+
+            if !failures.isEmpty {
+                errorMessage = "Some items could not be deleted:\n" + failures.joined(separator: "\n")
+            }
+            index = nil
+            scan(force: true)   // rebuild; the success path reloads the sheet if open
+        }
+    }
+
     /// Has this directory been modified since the index was built?
     private static func modifiedAfter(_ path: String, date: Date) -> Bool {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
@@ -303,9 +358,11 @@ final class ScanModel: ObservableObject {
 
         return entries.map { url in
             let vals = try? url.resourceValues(forKeys: rowKeys)
+            let isDirectory = vals?.isDirectory ?? false
             return DiskItem(url: url, byteSize: 0,
-                            isDirectory: vals?.isDirectory ?? false, sizeKnown: false,
-                            modified: vals?.contentModificationDate, created: vals?.creationDate)
+                            isDirectory: isDirectory, sizeKnown: false,
+                            modified: vals?.contentModificationDate, created: vals?.creationDate,
+                            category: ReclaimRules.classify(url: url, isDirectory: isDirectory))
         }
     }
 
@@ -359,6 +416,10 @@ struct ContentView: View {
             cacheFooter
         }
         .task { model.refreshCacheStats() }
+        .sheet(isPresented: $model.showReclaim) {
+            ReclaimSheet(model: model)
+                .frame(minWidth: 640, minHeight: 460)
+        }
         .confirmationDialog(
             "Delete this item?",
             isPresented: Binding(
@@ -418,6 +479,15 @@ struct ContentView: View {
             Button("As Admin") { model.scan(asAdmin: true) }
                 .disabled(model.targetPath.isEmpty)
                 .help("Rescan with administrator privileges")
+
+            Button {
+                model.showReclaim = true
+                model.loadReclaim()
+            } label: {
+                Label("Reclaim", systemImage: "sparkles")
+            }
+            .disabled(model.total == nil)
+            .help("Find caches and build artifacts you can safely delete")
         }
         .padding(10)
     }
@@ -440,7 +510,21 @@ struct ContentView: View {
                     indexStatus
                 }
                 Spacer()
-                if model.sizesPending { ProgressView().controlSize(.small) }
+                VStack(alignment: .trailing, spacing: 4) {
+                    if model.sizesPending { ProgressView().controlSize(.small) }
+                    if model.reclaimableHere > 0 {
+                        Button {
+                            model.showReclaim = true
+                            model.loadReclaim()
+                        } label: {
+                            Label("Reclaimable here: \(ByteCountFormatter.string(fromByteCount: model.reclaimableHere, countStyle: .file))",
+                                  systemImage: "sparkles")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.green)
+                    }
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -520,6 +604,16 @@ struct ContentView: View {
                     Text(item.kind).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .width(min: 70, ideal: 90)
+
+                TableColumn("Category", value: \.categorySort) { item in
+                    HStack(spacing: 6) {
+                        if item.category != nil {
+                            Circle().fill(item.reclaim.color).frame(width: 8, height: 8)
+                        }
+                        Text(item.categoryText).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                .width(min: 110, ideal: 150)
 
                 TableColumn("Modified", value: \.modifiedValue) { item in
                     Text(item.modifiedText).foregroundStyle(.secondary).lineLimit(1)
