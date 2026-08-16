@@ -35,7 +35,8 @@ struct AssistantPane: View {
             Button { onClose() } label: { Image(systemName: "sidebar.right") }
                 .buttonStyle(.borderless).help("Hide assistant")
         }
-        .padding(8)
+        .padding(.horizontal, 10)
+        .frame(height: 44)
     }
 
     private var transcript: some View {
@@ -95,6 +96,12 @@ struct AssistantPane: View {
     @ViewBuilder
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if assistant.warming {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading local model…").foregroundStyle(.secondary).font(.callout)
+                }
+            }
             if !assistant.isReady {
                 Label("Set up a provider to start", systemImage: "gearshape")
                     .font(.callout).foregroundStyle(.secondary)

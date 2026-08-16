@@ -16,6 +16,11 @@ enum MLXBackend {
         _ = try await container(for: modelID, onProgress: onProgress)
     }
 
+    /// Load the model into memory ahead of time so the first question is fast.
+    static func warmUp(modelID: String) async throws {
+        _ = try await container(for: modelID, onProgress: { _ in })
+    }
+
     static func generate(modelID: String,
                          system: String,
                          user: String,

@@ -522,13 +522,15 @@ struct ContentView: View {
 
             Button {
                 model.showAssistant.toggle()
+                if model.showAssistant { assistant.warmUpIfLocal() }
             } label: {
                 Label("Assistant", systemImage: "wand.and.stars")
             }
             .disabled(model.total == nil)
             .help("Ask what's safe to delete (cloud or on-device)")
         }
-        .padding(10)
+        .padding(.horizontal, 10)
+        .frame(height: 44)
     }
 
     @ViewBuilder

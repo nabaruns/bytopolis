@@ -21,6 +21,8 @@ final class AssistantModel: ObservableObject {
     @Published var downloading = false
     @Published var downloadProgress = 0.0
     @Published var downloadError: String?
+    @Published var warming = false          // preloading the local model into memory
+    private var warmedModel: String?
 
     // Provider config — persisted in UserDefaults (mirrored as @Published for the UI).
     @Published var provider: LLMProvider { didSet { d.set(provider.rawValue, forKey: "llmProvider") } }
@@ -106,6 +108,20 @@ final class AssistantModel: ObservableObject {
                 }
             }
             streaming = false
+        }
+    }
+
+    /// Preload the local model into memory (e.g. when the pane opens) so the first
+    /// question isn't slow. No-op for cloud providers or a not-yet-downloaded model.
+    func warmUpIfLocal() {
+        guard provider == .localMLX, LocalModelStore.isDownloaded(localModelID),
+              warmedModel != localModelID, !warming else { return }
+        let id = localModelID
+        warming = true
+        Task {
+            try? await MLXRunner.shared.warmUp(modelID: id)
+            if provider == .localMLX { warmedModel = id }
+            warming = false
         }
     }
 

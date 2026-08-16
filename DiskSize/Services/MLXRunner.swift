@@ -34,6 +34,11 @@ final class MLXRunner {
         LocalModelStore.markDownloaded(modelID)
     }
 
+    /// Preload the model into memory so the first generation isn't slow.
+    func warmUp(modelID: String) async throws {
+        try await MLXBackend.warmUp(modelID: modelID)
+    }
+
     /// Generate an answer, streaming tokens via `onToken` (called on the main actor).
     func generate(summaryJSON: String,
                   question: String,
