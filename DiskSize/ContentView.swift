@@ -114,7 +114,11 @@ final class ScanModel: ObservableObject {
     ///      incremental refresh runs in the background to catch changes.
     ///   3. A fresh full `du` scan, which is then persisted.
     func scan(asAdmin: Bool = false, force: Bool = false) {
-        let expanded = (targetPath.trimmingCharacters(in: .whitespaces) as NSString).expandingTildeInPath
+        // Guard the raw value first: standardize("") resolves to the cwd ("/"), which
+        // would otherwise make an empty target silently scan the filesystem root.
+        let raw = targetPath.trimmingCharacters(in: .whitespaces)
+        guard !raw.isEmpty else { return }
+        let expanded = (raw as NSString).expandingTildeInPath
         let path = DiskScanner.standardize(expanded)
         guard !path.isEmpty else { return }
         targetPath = path               // reflect the resolved absolute path

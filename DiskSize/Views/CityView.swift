@@ -105,8 +105,10 @@ struct CityView: View {
     // MARK: - Build
 
     private func rebuild() async {
-        let root = DiskScanner.standardize(model.targetPath.trimmingCharacters(in: .whitespaces))
-        guard !root.isEmpty else { scene = nil; layout = nil; return }
+        // Wait for a chosen workspace — an empty target standardizes to the cwd ("/").
+        let raw = model.targetPath.trimmingCharacters(in: .whitespaces)
+        guard !raw.isEmpty else { scene = nil; layout = nil; building = false; return }
+        let root = DiskScanner.standardize(raw)
         building = true
         selectedPath = nil
         let idx = model.currentIndex
