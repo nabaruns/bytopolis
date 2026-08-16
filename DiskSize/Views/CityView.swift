@@ -18,6 +18,10 @@ struct CityView: View {
     @State private var activeWorker: AgentWorker?
     @State private var avatars: [UUID: SCNNode] = [:]
 
+    // Highlight of the selected node in the 3D scene
+    @State private var highlightedNode: SCNNode?
+    @State private var savedEmission: Any?
+
     private var selected: CityNode? {
         guard let p = selectedPath else { return nil }
         return layout?.nodes.first { $0.id == p }
@@ -65,6 +69,7 @@ struct CityView: View {
             }
         }
         .task(id: buildKey) { await rebuild() }
+        .onChange(of: selectedPath) { _, new in applyHighlight(new) }
         .sheet(item: $configNode) { node in
             WorkerConfigView(repoName: node.name, repoPath: node.id) { agent, mode, task in
                 let worker = workers.start(repoPath: node.id, agent: agent, mode: mode, task: task)
@@ -126,8 +131,23 @@ struct CityView: View {
             CityModel.build(root: root, index: idx, now: Date())
         }.value
         layout = built
+        highlightedNode = nil; savedEmission = nil     // old scene's nodes are gone
         scene = CityScene.make(from: built)   // fast; nodes only
         building = false
+    }
+
+    /// Glow the node matching `path` in the scene (and clear the previous one), so clicking
+    /// a side-list row — or a tile — lights it up on the map.
+    private func applyHighlight(_ path: String?) {
+        if let prev = highlightedNode {
+            prev.geometry?.firstMaterial?.emission.contents = savedEmission
+        }
+        highlightedNode = nil; savedEmission = nil
+        guard let path, let node = scene?.rootNode.childNode(withName: path, recursively: true),
+              let material = node.geometry?.firstMaterial else { return }
+        savedEmission = material.emission.contents
+        material.emission.contents = NSColor.white
+        highlightedNode = node
     }
 
     // MARK: - Overlays
