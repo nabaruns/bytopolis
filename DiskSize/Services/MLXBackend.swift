@@ -35,6 +35,7 @@ enum MLXBackend {
         }
 
         for await generation in stream {
+            if Task.isCancelled { break }
             if let text = generation.chunk {
                 await MainActor.run { onToken(text) }
             }

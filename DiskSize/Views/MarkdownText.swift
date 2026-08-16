@@ -127,25 +127,29 @@ enum MarkdownParser {
                 i += 1; continue
             }
 
-            // Unordered list (consume consecutive items).
+            // Unordered list — consume items, hopping over blank-line gaps between them.
             if isBullet(trimmed) {
                 flushParagraph()
                 var items: [String] = []
-                while i < lines.count, isBullet(lines[i].trimmingCharacters(in: .whitespaces)) {
-                    items.append(bulletContent(lines[i].trimmingCharacters(in: .whitespaces)))
-                    i += 1
+                while i < lines.count {
+                    let t = lines[i].trimmingCharacters(in: .whitespaces)
+                    if isBullet(t) { items.append(bulletContent(t)); i += 1; continue }
+                    if t.isEmpty, let j = nextItemIndex(lines, after: i, isBullet: true) { i = j; continue }
+                    break
                 }
                 blocks.append(.bullet(items))
                 continue
             }
 
-            // Ordered list.
+            // Ordered list — same, so "1.\n\n1.\n\n1." renders as 1, 2, 3.
             if orderedContent(trimmed) != nil {
                 flushParagraph()
                 var items: [String] = []
-                while i < lines.count, let c = orderedContent(lines[i].trimmingCharacters(in: .whitespaces)) {
-                    items.append(c)
-                    i += 1
+                while i < lines.count {
+                    let t = lines[i].trimmingCharacters(in: .whitespaces)
+                    if let c = orderedContent(t) { items.append(c); i += 1; continue }
+                    if t.isEmpty, let j = nextItemIndex(lines, after: i, isBullet: false) { i = j; continue }
+                    break
                 }
                 blocks.append(.ordered(items))
                 continue
@@ -165,6 +169,17 @@ enum MarkdownParser {
         let count = s.prefix(while: { $0 == "#" }).count
         guard count <= 6, s.dropFirst(count).first == " " else { return nil }
         return count
+    }
+
+    /// Index of the next list item of the given kind after `i`, if only blank lines
+    /// intervene (used to keep a list going across blank-line gaps).
+    private static func nextItemIndex(_ lines: [String], after i: Int, isBullet wantBullet: Bool) -> Int? {
+        var j = i
+        while j < lines.count, lines[j].trimmingCharacters(in: .whitespaces).isEmpty { j += 1 }
+        guard j < lines.count else { return nil }
+        let t = lines[j].trimmingCharacters(in: .whitespaces)
+        let matches = wantBullet ? isBullet(t) : (orderedContent(t) != nil)
+        return matches ? j : nil
     }
 
     private static func isBullet(_ s: String) -> Bool {

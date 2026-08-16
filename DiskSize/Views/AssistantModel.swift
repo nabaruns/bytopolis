@@ -32,6 +32,7 @@ final class AssistantModel: ObservableObject {
     weak var scan: ScanModel?
 
     private let d = UserDefaults.standard
+    private var genTask: Task<Void, Never>?
 
     let quickPrompts = [
         "What can I safely delete to free the most space?",
@@ -80,7 +81,7 @@ final class AssistantModel: ObservableObject {
         let summary = scan?.assistantSummaryJSON() ?? "{}"
         let cfg = config
 
-        Task {
+        genTask = Task {
             do {
                 if cfg.provider == .localMLX {
                     try await MLXRunner.shared.generate(
@@ -91,17 +92,30 @@ final class AssistantModel: ObservableObject {
                     }
                 } else {
                     let answer = try await LLMClient.ask(question: q, summaryJSON: summary, config: cfg)
-                    if messages.indices.contains(replyIndex) { messages[replyIndex].text = answer }
+                    if !Task.isCancelled, messages.indices.contains(replyIndex) {
+                        messages[replyIndex].text = answer
+                    }
                 }
+            } catch is CancellationError {
+                // Keep whatever was streamed before the user stopped.
             } catch {
-                errorText = error.localizedDescription
-                if messages.indices.contains(replyIndex) { messages.remove(at: replyIndex) }
+                if !Task.isCancelled { errorText = error.localizedDescription }
+                // Drop the reply bubble only if nothing was produced.
+                if messages.indices.contains(replyIndex), messages[replyIndex].text.isEmpty {
+                    messages.remove(at: replyIndex)
+                }
             }
             streaming = false
         }
     }
 
-    func clear() { messages.removeAll(); errorText = nil }
+    /// Stop an in-progress generation, keeping any partial text.
+    func stop() {
+        genTask?.cancel()
+        streaming = false
+    }
+
+    func clear() { stop(); messages.removeAll(); errorText = nil }
 
     func downloadLocalModel() {
         guard !downloading else { return }
