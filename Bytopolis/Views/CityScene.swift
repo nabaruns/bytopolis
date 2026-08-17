@@ -292,8 +292,14 @@ enum CityScene {
         cam.camera!.zFar = 4000
         cam.camera!.fieldOfView = 50
         // Low, oblique angle so buildings read as a skyline rather than a flat map.
-        cam.position = SCNVector3(side * 0.5, side * 0.5, side * 1.75)
-        cam.look(at: SCNVector3(side / 2, side * 0.08, side / 2))
+        let rest = SCNVector3(side * 0.5, side * 0.5, side * 1.75)
+        cam.position = rest
+        cam.look(at: SCNVector3(side / 2, side * 0.08, side / 2))   // fix final orientation
+        // Fly in from higher/further so entering a folder feels like arriving in the city.
+        cam.position = SCNVector3(side * 0.5, side * 1.25, side * 3.1)
+        let fly = SCNAction.move(to: rest, duration: 0.7)
+        fly.timingMode = .easeInEaseOut
+        cam.runAction(fly)
         root.addChildNode(cam)
     }
 }

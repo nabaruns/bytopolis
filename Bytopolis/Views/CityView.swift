@@ -13,6 +13,7 @@ struct CityView: View {
     @State private var layout: CityLayout?
     @State private var building = false
     @State private var selectedPath: String?
+    @State private var rootNode: CityNode?   // synthetic node for the current folder itself
 
     // Workers (Phase 2)
     @StateObject private var workers = WorkerStore()
@@ -28,6 +29,7 @@ struct CityView: View {
 
     private var selected: CityNode? {
         guard let p = selectedPath else { return nil }
+        if let r = rootNode, r.id == p { return r }          // the folder itself
         return layout?.nodes.first { $0.id == p }
     }
 
@@ -167,17 +169,33 @@ struct CityView: View {
         // via `buildKey` once `indexBuiltAt` updates.
         guard model.currentIndex != nil else { building = true; scene = nil; layout = nil; return }
         building = true
-        selectedPath = nil
+        let priorSelection = selectedPath
         let idx = model.currentIndex
         let built = await Task.detached(priority: .userInitiated) {
             CityModel.build(root: root, index: idx, now: Date())
         }.value
         layout = built
+
+        // A synthetic node for the folder itself, so choosing/entering it shows a popup.
+        let git = GitReader.info(root)
+        rootNode = CityNode(
+            id: root, name: (root as NSString).lastPathComponent,
+            rect: built.bounds, depth: -1,
+            byteSize: model.total?.byteSize ?? 0, height: 0,
+            kind: git != nil ? .facility : .district,
+            category: model.total?.category, mtime: model.total?.modified,
+            isRecent: false, isEntry: false, git: git)
+
         highlightedNode = nil; savedEmission = nil     // old scene's nodes are gone
         avatars = [:]; avatarPhase = [:]               // avatars belonged to the old scene
         scene = CityScene.make(from: built, dark: colorScheme == .dark)   // fast; nodes only
         building = false
         syncAvatars()                                  // re-place any live worker figures
+
+        // Show the folder's popup on entry; keep an in-level selection across index refreshes.
+        if priorSelection == nil || !built.nodes.contains(where: { $0.id == priorSelection }) {
+            selectedPath = root
+        }
     }
 
     /// Rebuild just the scene (not the layout) when the system switches light/dark, so the
@@ -188,6 +206,16 @@ struct CityView: View {
         avatars = [:]; avatarPhase = [:]
         scene = CityScene.make(from: layout, dark: colorScheme == .dark)
         syncAvatars()
+    }
+
+    /// Drill into a district/facility from the side list — re-scans into it, which rebuilds
+    /// the city (with the camera fly-in) and shows the folder's popup on arrival. Files just
+    /// select.
+    private func enter(_ n: CityNode) {
+        guard n.kind != .building else { selectedPath = n.id; return }
+        selectedPath = n.id                 // matches the new root → its popup shows after rebuild
+        model.targetPath = n.id
+        model.scan()
     }
 
     /// Glow the node matching `path` in the scene (and clear the previous one), so clicking
@@ -236,26 +264,26 @@ struct CityView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(items) { n in
-                        Button { selectedPath = n.id } label: {
-                            HStack(spacing: 6) {
-                                if n.kind == .facility {
-                                    Image(systemName: "shippingbox.fill").font(.caption2)
-                                        .foregroundStyle(Color(red: 0.49, green: 0.36, blue: 0.84))
-                                } else {
-                                    Circle().fill(color(for: n)).frame(width: 8, height: 8)
-                                }
-                                Text(n.name).font(.caption).lineLimit(1)
-                                Spacer(minLength: 6)
-                                Text(ByteCountFormatter.string(fromByteCount: n.byteSize, countStyle: .file))
-                                    .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+                        HStack(spacing: 6) {
+                            if n.kind == .facility {
+                                Image(systemName: "shippingbox.fill").font(.caption2)
+                                    .foregroundStyle(Color(red: 0.49, green: 0.36, blue: 0.84))
+                            } else {
+                                Circle().fill(color(for: n)).frame(width: 8, height: 8)
                             }
-                            .padding(.vertical, 3).padding(.horizontal, 8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(selectedPath == n.id ? Color.accentColor.opacity(0.25) : .clear,
-                                        in: RoundedRectangle(cornerRadius: 5))
-                            .contentShape(Rectangle())
+                            Text(n.name).font(.caption).lineLimit(1)
+                            Spacer(minLength: 6)
+                            Text(ByteCountFormatter.string(fromByteCount: n.byteSize, countStyle: .file))
+                                .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
                         }
-                        .buttonStyle(.plain)
+                        .padding(.vertical, 3).padding(.horizontal, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(selectedPath == n.id ? Color.accentColor.opacity(0.25) : .clear,
+                                    in: RoundedRectangle(cornerRadius: 5))
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) { enter(n) }
+                        .onTapGesture(count: 1) { selectedPath = n.id }
+                        .help(n.kind == .building ? n.name : "Double-click to open \(n.name)")
                     }
                 }
                 .padding(.horizontal, 4).padding(.bottom, 6)
