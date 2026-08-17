@@ -20,6 +20,20 @@ final class AgentWorker: ObservableObject, Identifiable {
     }
     enum Status: Equatable { case running, finished, failed(String), stopped }
 
+    /// A coarse visual state for the city avatar. "waiting" = running but the agent has been
+    /// silent for a beat (thinking / waiting on the model or a tool), vs "working" = actively
+    /// streaming output.
+    enum Phase { case working, waiting, done, failed, stopped }
+
+    var phase: Phase {
+        switch status {
+        case .running: return Date().timeIntervalSince(lastOutputAt) < 3 ? .working : .waiting
+        case .finished: return .done
+        case .failed:   return .failed
+        case .stopped:  return .stopped
+        }
+    }
+
     let id = UUID()
     let repoPath: String
     let repoName: String
@@ -30,6 +44,8 @@ final class AgentWorker: ObservableObject, Identifiable {
     @Published var transcript = ""
     @Published var status: Status = .running
     @Published var changesSummary: String?
+    /// When the agent last produced output — drives the working/waiting distinction.
+    @Published var lastOutputAt = Date()
 
     /// Called on the main actor whenever the run ends (finished/failed/stopped).
     var onEnd: (() -> Void)?
@@ -70,7 +86,7 @@ final class AgentWorker: ObservableObject, Identifiable {
             let d = h.availableData
             guard !d.isEmpty else { return }
             let s = String(decoding: d, as: UTF8.self)
-            Task { @MainActor in self?.transcript += s }
+            Task { @MainActor in self?.lastOutputAt = Date(); self?.transcript += s }
         }
         proc.terminationHandler = { [weak self] p in
             Task { @MainActor in self?.finish(code: p.terminationStatus) }
@@ -91,6 +107,7 @@ final class AgentWorker: ObservableObject, Identifiable {
     // MARK: - Streaming
 
     private func ingest(_ data: Data) {
+        lastOutputAt = Date()
         if agent == .claude {
             // stream-json: one JSON object per line.
             lineBuffer.append(data)

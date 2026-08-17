@@ -170,6 +170,104 @@ enum CityScene {
         root.addChildNode(node)
     }
 
+    // MARK: - Worker avatars (a little Lego-style figure per agent session)
+
+    /// Builds a blocky minifig for a worker session. The root carries `worker:<id>` for
+    /// hit-testing (click the figure → open its session); the inner `figure` node is what
+    /// animates, so the root's placement stays put. A "status" bulb over the head is colored
+    /// and pulsed by ``applyPhase(_:to:)`` to show working / waiting / stopped / done / failed.
+    static func makeWorkerAvatar(agent: AgentWorker.Agent, id: UUID) -> SCNNode {
+        let root = SCNNode()
+        root.name = "worker:\(id.uuidString)"
+        let figure = SCNNode()
+        figure.name = "worker:\(id.uuidString)"
+        root.addChildNode(figure)
+
+        let bodyColor = agent == .claude ? hex(0xD97757) : hex(0x10A37F)   // Claude clay / Codex green
+        let skin = hex(0xF2C14E)                                            // Lego-yellow head
+        let limb = bodyColor.blended(withFraction: 0.18, of: .black) ?? bodyColor
+
+        func part(_ w: CGFloat, _ h: CGFloat, _ d: CGFloat, _ color: NSColor,
+                  _ x: Float, _ y: Float, _ z: Float, chamfer: CGFloat = 0.15) {
+            let g = SCNBox(width: w, height: h, length: d, chamferRadius: chamfer)
+            let m = SCNMaterial(); m.diffuse.contents = color; g.materials = [m]
+            let n = SCNNode(geometry: g); n.position = SCNVector3(x, y, z)
+            n.name = root.name
+            figure.addChildNode(n)
+        }
+
+        part(1.2, 3.0, 1.4, limb, -0.8, 1.5, 0)                 // left leg
+        part(1.2, 3.0, 1.4, limb,  0.8, 1.5, 0)                 // right leg
+        part(3.2, 3.2, 1.8, bodyColor, 0, 4.6, 0)               // torso
+        part(0.9, 2.8, 0.9, limb, -2.05, 4.6, 0)                // left arm
+        part(0.9, 2.8, 0.9, limb,  2.05, 4.6, 0)                // right arm
+        part(2.4, 2.2, 2.2, skin, 0, 7.4, 0, chamfer: 0.45)     // head
+        part(2.7, 0.8, 2.7, bodyColor, 0, 8.7, 0, chamfer: 0.2) // cap
+
+        // Status bulb + its own light, floating above the head.
+        let bulb = SCNSphere(radius: 0.9)
+        bulb.materials = [SCNMaterial()]
+        let status = SCNNode(geometry: bulb)
+        status.name = "status"
+        status.position = SCNVector3(0, 10.6, 0)
+        let sl = SCNLight(); sl.type = .omni; sl.attenuationEndDistance = 26
+        status.light = sl
+        figure.addChildNode(status)
+
+        return root
+    }
+
+    /// Colors + animates a worker avatar for its current phase.
+    static func applyPhase(_ phase: AgentWorker.Phase, to avatar: SCNNode) {
+        guard let figure = avatar.childNodes.first else { return }
+
+        let color: NSColor
+        switch phase {
+        case .working: color = NSColor.systemGreen
+        case .waiting: color = NSColor.systemYellow
+        case .done:    color = hex(0x38B2AC)
+        case .failed:  color = NSColor.systemRed
+        case .stopped: color = hex(0x8A8F98)
+        }
+
+        if let status = figure.childNode(withName: "status", recursively: false),
+           let m = status.geometry?.firstMaterial {
+            m.diffuse.contents = color
+            m.emission.contents = color
+            status.light?.color = color
+            status.light?.intensity = (phase == .stopped) ? 0 : 340
+            status.removeAllActions()
+            status.scale = SCNVector3(1, 1, 1)
+            switch phase {
+            case .working:
+                status.runAction(.repeatForever(.sequence([
+                    .scale(to: 1.35, duration: 0.35), .scale(to: 1.0, duration: 0.35)])))
+            case .waiting:
+                status.runAction(.repeatForever(.sequence([
+                    .scale(to: 1.25, duration: 1.0), .scale(to: 0.85, duration: 1.0)])))
+            default:
+                break
+            }
+        }
+
+        // Body motion: bob while working, sway while waiting, rest otherwise.
+        figure.removeAllActions()
+        figure.position = SCNVector3Zero
+        figure.eulerAngles = SCNVector3Zero
+        switch phase {
+        case .working:
+            figure.runAction(.repeatForever(.sequence([
+                .moveBy(x: 0, y: 1.1, z: 0, duration: 0.32),
+                .moveBy(x: 0, y: -1.1, z: 0, duration: 0.32)])))
+        case .waiting:
+            figure.runAction(.repeatForever(.sequence([
+                .rotateBy(x: 0, y: 0.22, z: 0, duration: 1.3),
+                .rotateBy(x: 0, y: -0.22, z: 0, duration: 1.3)])))
+        default:
+            break
+        }
+    }
+
     // MARK: - Lighting + camera
 
     private static func addLighting(to root: SCNNode, style: Style) {

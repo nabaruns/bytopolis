@@ -1,6 +1,7 @@
 import SwiftUI
 import SceneKit
 import AppKit
+import Combine
 
 /// The 3D "software city" view. Builds the layout off the main thread, renders it with
 /// SceneKit, and shows an info panel for the clicked district/building/facility.
@@ -18,6 +19,8 @@ struct CityView: View {
     @State private var configNode: CityNode?
     @State private var activeWorker: AgentWorker?
     @State private var avatars: [UUID: SCNNode] = [:]
+    @State private var avatarPhase: [UUID: AgentWorker.Phase] = [:]
+    @State private var tick = 0   // periodic nudge so time-based phases refresh the roster
 
     // Highlight of the selected node in the 3D scene
     @State private var highlightedNode: SCNNode?
@@ -31,7 +34,17 @@ struct CityView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             if let scene {
-                SceneKitView(scene: scene) { selectedPath = $0 }
+                SceneKitView(scene: scene) { name in
+                    if name.hasPrefix("worker:") {
+                        let uid = String(name.dropFirst("worker:".count))
+                        if let w = workers.workers.first(where: { $0.id.uuidString == uid }) {
+                            activeWorker = w
+                            selectedPath = nil
+                        }
+                    } else {
+                        selectedPath = name
+                    }
+                }
             } else {
                 Color(nsColor: .textBackgroundColor)
             }
@@ -44,6 +57,7 @@ struct CityView: View {
                         .background(.thinMaterial, in: Capsule())
                 }
                 sideList
+                if !workers.workers.isEmpty { workerRoster }
             }
             .padding(10)
 
@@ -62,8 +76,8 @@ struct CityView: View {
             if let worker = activeWorker {
                 WorkerPanel(worker: worker) {
                     workers.remove(worker)
-                    removeAvatar(worker.id)
                     activeWorker = nil
+                    syncAvatars()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                 .padding(12)
@@ -72,41 +86,67 @@ struct CityView: View {
         .task(id: buildKey) { await rebuild() }
         .onChange(of: colorScheme) { _, _ in restyle() }
         .onChange(of: selectedPath) { _, new in applyHighlight(new) }
+        .onChange(of: workers.workers.count) { _, _ in syncAvatars() }
+        .onReceive(Timer.publish(every: 1.2, on: .main, in: .common).autoconnect()) { _ in
+            if !workers.workers.isEmpty { tick &+= 1 }   // re-render roster
+            syncAvatars()   // refresh working↔waiting and finished/stopped states over time
+        }
         .sheet(item: $configNode) { node in
             WorkerConfigView(repoName: node.name, repoPath: node.id) { agent, mode, task in
                 let worker = workers.start(repoPath: node.id, agent: agent, mode: mode, task: task)
                 activeWorker = worker
-                addAvatar(for: node, worker: worker)
+                syncAvatars()
             }
         }
     }
 
-    // MARK: - Worker avatars (a bobbing marker over an active repo facility)
+    // MARK: - Worker avatars (a Lego-style figure per session, over its repo facility)
 
-    private func addAvatar(for node: CityNode, worker: AgentWorker) {
-        guard let scene else { return }
-        let sphere = SCNSphere(radius: 2)
-        let mat = SCNMaterial()
-        mat.diffuse.contents = NSColor.systemOrange
-        mat.emission.contents = NSColor.systemOrange
-        sphere.materials = [mat]
-        let avatar = SCNNode(geometry: sphere)
-        avatar.name = node.id
-        let baseY = Float(node.depth) * 1.4
-        avatar.position = SCNVector3(Float(node.rect.midX), baseY + 11, Float(node.rect.midY))
-        let light = SCNLight(); light.type = .omni; light.color = NSColor.systemOrange; light.intensity = 500
-        avatar.light = light
-        avatar.runAction(.repeatForever(.sequence([
-            .moveBy(x: 0, y: 2.5, z: 0, duration: 0.7),
-            .moveBy(x: 0, y: -2.5, z: 0, duration: 0.7)
-        ])))
-        scene.rootNode.addChildNode(avatar)
-        avatars[worker.id] = avatar
-    }
+    /// Reconcile the scene's worker figures with the current worker set: add figures for new
+    /// sessions, drop them when a session is removed, and restyle each to its live phase
+    /// (working / waiting / done / failed / stopped). Multiple sessions on one repo are fanned
+    /// out around the facility so they don't overlap.
+    private func syncAvatars() {
+        guard let scene, let layout else { return }
+        let live = workers.workers
+        let liveIDs = Set(live.map(\.id))
 
-    private func removeAvatar(_ id: UUID) {
-        avatars[id]?.removeFromParentNode()
-        avatars[id] = nil
+        for (id, node) in avatars where !liveIDs.contains(id) {
+            node.removeFromParentNode()
+            avatars[id] = nil
+            avatarPhase[id] = nil
+        }
+
+        // Spots to fan out co-located sessions around a facility center.
+        let ring: [(Float, Float)] = [(0, 0), (1, 1), (-1, 1), (1, -1), (-1, -1), (0, 1.5), (0, -1.5)]
+        var perRepo: [String: Int] = [:]
+
+        for w in live {
+            guard let facility = layout.nodes.first(where: { $0.id == w.repoPath }) else { continue }
+            let idx = perRepo[w.repoPath, default: 0]; perRepo[w.repoPath] = idx + 1
+
+            let node: SCNNode
+            if let existing = avatars[w.id] {
+                node = existing
+            } else {
+                let n = CityScene.makeWorkerAvatar(agent: w.agent, id: w.id)
+                let spread = Float(min(facility.rect.width, facility.rect.height)) * 0.22
+                let off = ring[min(idx, ring.count - 1)]
+                let baseY = Float(facility.depth) * 1.4 + 0.6
+                n.position = SCNVector3(Float(facility.rect.midX) + off.0 * spread,
+                                        baseY,
+                                        Float(facility.rect.midY) + off.1 * spread)
+                scene.rootNode.addChildNode(n)
+                avatars[w.id] = n
+                node = n
+            }
+
+            let p = w.phase
+            if avatarPhase[w.id] != p {
+                CityScene.applyPhase(p, to: node)
+                avatarPhase[w.id] = p
+            }
+        }
     }
 
     // MARK: - Build
@@ -134,8 +174,10 @@ struct CityView: View {
         }.value
         layout = built
         highlightedNode = nil; savedEmission = nil     // old scene's nodes are gone
+        avatars = [:]; avatarPhase = [:]               // avatars belonged to the old scene
         scene = CityScene.make(from: built, dark: colorScheme == .dark)   // fast; nodes only
         building = false
+        syncAvatars()                                  // re-place any live worker figures
     }
 
     /// Rebuild just the scene (not the layout) when the system switches light/dark, so the
@@ -143,7 +185,9 @@ struct CityView: View {
     private func restyle() {
         guard let layout else { return }
         highlightedNode = nil; savedEmission = nil
+        avatars = [:]; avatarPhase = [:]
         scene = CityScene.make(from: layout, dark: colorScheme == .dark)
+        syncAvatars()
     }
 
     /// Glow the node matching `path` in the scene (and clear the previous one), so clicking
@@ -219,6 +263,30 @@ struct CityView: View {
         }
         .frame(width: 236)
         .frame(maxHeight: 360)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .windowBackgroundColor).opacity(0.94)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary))
+    }
+
+    /// Live roster of worker sessions with a colored status dot — click a row to open its
+    /// session. Mirrors the 3D figures in the city (same statuses, same colors).
+    private var workerRoster: some View {
+        let _ = tick   // participate in the periodic refresh
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("Workers").font(.caption2).foregroundStyle(.secondary)
+                .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 2)
+            VStack(alignment: .leading, spacing: 1) {
+                ForEach(workers.workers) { w in
+                    Button { activeWorker = w } label: {
+                        WorkerRosterRow(worker: w)
+                            .background(activeWorker?.id == w.id ? Color.accentColor.opacity(0.22) : .clear,
+                                        in: RoundedRectangle(cornerRadius: 5))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 4).padding(.bottom, 6)
+        }
+        .frame(width: 236)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .windowBackgroundColor).opacity(0.94)))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary))
     }
@@ -302,6 +370,48 @@ struct CityView: View {
         node.kind == .facility
             ? Color(hue: 0.75, saturation: 0.5, brightness: 0.7)
             : (node.category?.reclaim ?? .keep).color
+    }
+}
+
+/// One row in the worker roster: a phase-colored dot, the agent, the repo, and a status
+/// line. Observes the worker so status/output changes refresh it live.
+private struct WorkerRosterRow: View {
+    @ObservedObject var worker: AgentWorker
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Circle().fill(phaseColor).frame(width: 9, height: 9)
+                .shadow(color: phaseColor.opacity(0.8), radius: worker.phase == .working ? 3 : 0)
+            Image(systemName: worker.agent == .claude ? "sparkle" : "chevron.left.forwardslash.chevron.right")
+                .font(.caption2).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(worker.repoName).font(.caption).lineLimit(1)
+                Text(phaseLabel).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+        }
+        .padding(.vertical, 3).padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var phaseColor: Color {
+        switch worker.phase {
+        case .working: return .green
+        case .waiting: return .yellow
+        case .done:    return .teal
+        case .failed:  return .red
+        case .stopped: return .gray
+        }
+    }
+    private var phaseLabel: String {
+        switch worker.phase {
+        case .working: return "working…"
+        case .waiting: return "waiting for response…"
+        case .done:    return worker.changesSummary ?? "done"
+        case .failed:  return "failed"
+        case .stopped: return "stopped"
+        }
     }
 }
 
