@@ -26,6 +26,7 @@ struct CityView: View {
     // Highlight of the selected node in the 3D scene
     @State private var highlightedNode: SCNNode?
     @State private var savedEmission: Any?
+    @State private var savedDiffuse: Any?
 
     private var selected: CityNode? {
         guard let p = selectedPath else { return nil }
@@ -186,7 +187,7 @@ struct CityView: View {
             category: model.total?.category, mtime: model.total?.modified,
             isRecent: false, isEntry: false, git: git)
 
-        highlightedNode = nil; savedEmission = nil     // old scene's nodes are gone
+        highlightedNode = nil; savedEmission = nil; savedDiffuse = nil   // old scene's nodes are gone
         avatars = [:]; avatarPhase = [:]               // avatars belonged to the old scene
         scene = CityScene.make(from: built, dark: colorScheme == .dark)   // fast; nodes only
         building = false
@@ -202,7 +203,7 @@ struct CityView: View {
     /// city repaints for the new appearance. Cheap — geometry only.
     private func restyle() {
         guard let layout else { return }
-        highlightedNode = nil; savedEmission = nil
+        highlightedNode = nil; savedEmission = nil; savedDiffuse = nil
         avatars = [:]; avatarPhase = [:]
         scene = CityScene.make(from: layout, dark: colorScheme == .dark)
         syncAvatars()
@@ -221,14 +222,19 @@ struct CityView: View {
     /// Glow the node matching `path` in the scene (and clear the previous one), so clicking
     /// a side-list row — or a tile — lights it up on the map.
     private func applyHighlight(_ path: String?) {
-        if let prev = highlightedNode {
-            prev.geometry?.firstMaterial?.emission.contents = savedEmission
+        if let prev = highlightedNode, let m = prev.geometry?.firstMaterial {
+            m.emission.contents = savedEmission
+            m.diffuse.contents = savedDiffuse
         }
-        highlightedNode = nil; savedEmission = nil
+        highlightedNode = nil; savedEmission = nil; savedDiffuse = nil
         guard let path, let node = scene?.rootNode.childNode(withName: path, recursively: true),
               let material = node.geometry?.firstMaterial else { return }
         savedEmission = material.emission.contents
-        material.emission.contents = NSColor.white
+        savedDiffuse = material.diffuse.contents
+        // Turn the selected node white so it reads clearly against either background; add a
+        // white glow only in dark mode (emission washes out on the light scene).
+        material.diffuse.contents = NSColor.white
+        material.emission.contents = colorScheme == .dark ? NSColor.white : NSColor(white: 0.25, alpha: 1)
         highlightedNode = node
     }
 
