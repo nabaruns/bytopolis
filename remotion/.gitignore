@@ -1,0 +1,8 @@
+node_modules/
+out/
+.remotion/
+# Recordings are large — keep them out of git. Drop them locally into public/.
+public/*.mp4
+public/*.mov
+public/*.m4a
+public/*.mp3

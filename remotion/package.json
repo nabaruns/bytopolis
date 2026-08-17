@@ -1,0 +1,24 @@
+{
+  "name": "bytopolis-remotion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remotion project that assembles the Bytopolis demo video (titles, captions, intro/outro) around Screen Studio recordings.",
+  "scripts": {
+    "dev": "remotion studio",
+    "render": "remotion render BytopolisDemo out/bytopolis-demo.mp4",
+    "render:social": "remotion render BytopolisSocial out/bytopolis-social.mp4 --props='{\"social\":true}'",
+    "still": "remotion still BytopolisDemo out/poster.png --frame=0",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.4"
+  }
+}
