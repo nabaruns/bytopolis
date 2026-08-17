@@ -6,6 +6,7 @@ import AppKit
 /// SceneKit, and shows an info panel for the clicked district/building/facility.
 struct CityView: View {
     @ObservedObject var model: ScanModel
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var scene: SCNScene?
     @State private var layout: CityLayout?
@@ -69,6 +70,7 @@ struct CityView: View {
             }
         }
         .task(id: buildKey) { await rebuild() }
+        .onChange(of: colorScheme) { _, _ in restyle() }
         .onChange(of: selectedPath) { _, new in applyHighlight(new) }
         .sheet(item: $configNode) { node in
             WorkerConfigView(repoName: node.name, repoPath: node.id) { agent, mode, task in
@@ -132,8 +134,16 @@ struct CityView: View {
         }.value
         layout = built
         highlightedNode = nil; savedEmission = nil     // old scene's nodes are gone
-        scene = CityScene.make(from: built)   // fast; nodes only
+        scene = CityScene.make(from: built, dark: colorScheme == .dark)   // fast; nodes only
         building = false
+    }
+
+    /// Rebuild just the scene (not the layout) when the system switches light/dark, so the
+    /// city repaints for the new appearance. Cheap — geometry only.
+    private func restyle() {
+        guard let layout else { return }
+        highlightedNode = nil; savedEmission = nil
+        scene = CityScene.make(from: layout, dark: colorScheme == .dark)
     }
 
     /// Glow the node matching `path` in the scene (and clear the previous one), so clicking
@@ -305,7 +315,7 @@ private struct SceneKitView: NSViewRepresentable {
         view.allowsCameraControl = true
         view.antialiasingMode = .multisampling4X
         view.autoenablesDefaultLighting = false
-        view.backgroundColor = .black
+        view.backgroundColor = .windowBackgroundColor   // adapts to light/dark behind the scene
         let click = NSClickGestureRecognizer(target: context.coordinator,
                                              action: #selector(Coordinator.handleClick(_:)))
         view.addGestureRecognizer(click)

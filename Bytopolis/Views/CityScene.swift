@@ -5,15 +5,33 @@ import AppKit
 /// sized by bytes, git repos as walled facilities, recent items glowing, and a beacon over
 /// the single most-recently-modified "entry". Each node carries its path in `name` for
 /// hit-testing.
+///
+/// The look adapts to the system appearance: a lit night city in dark mode, a bright
+/// daytime city in light mode (`dark: false`).
 enum CityScene {
-    static func make(from layout: CityLayout) -> SCNScene {
+
+    /// Appearance-dependent surfaces (sky, ground, lighting, glow) for one build.
+    struct Style {
+        let dark: Bool
+        var background: NSColor { dark ? hex(0x0D0F17) : hex(0xE8EDF4) }
+        var floor: NSColor { dark ? hex(0x1A1C26) : hex(0xD3D9E2) }
+        var ambientColor: NSColor {
+            dark ? NSColor(calibratedRed: 0.62, green: 0.66, blue: 0.78, alpha: 1)
+                 : NSColor(calibratedRed: 0.86, green: 0.88, blue: 0.94, alpha: 1)
+        }
+        var ambientIntensity: CGFloat { dark ? 550 : 820 }
+        var keyIntensity: CGFloat { dark ? 1100 : 1000 }
+    }
+
+    static func make(from layout: CityLayout, dark: Bool = true) -> SCNScene {
+        let style = Style(dark: dark)
         let scene = SCNScene()
         let root = scene.rootNode
         let side = CGFloat(layout.bounds.width)
 
         // Ground.
         let floor = SCNBox(width: side + 10, height: 1, length: side + 10, chamferRadius: 0)
-        floor.firstMaterial?.diffuse.contents = NSColor(calibratedRed: 0.10, green: 0.11, blue: 0.15, alpha: 1)
+        floor.firstMaterial?.diffuse.contents = style.floor
         let floorNode = SCNNode(geometry: floor)
         floorNode.position = SCNVector3(Float(side / 2), -0.5, Float(side / 2))
         root.addChildNode(floorNode)
@@ -27,12 +45,12 @@ enum CityScene {
             switch n.kind {
             case .district, .facility:
                 let box = SCNBox(width: w, height: plotH, length: l, chamferRadius: 0)
-                box.firstMaterial?.diffuse.contents = plotColor(n)
+                box.firstMaterial?.diffuse.contents = plotColor(n, style)
                 let node = SCNNode(geometry: box)
                 node.position = SCNVector3(cx, baseY + Float(plotH / 2), cz)
                 node.name = n.id
                 root.addChildNode(node)
-                if n.kind == .facility { addWalls(to: root, rect: n.rect, baseY: baseY + Float(plotH)) }
+                if n.kind == .facility { addWalls(to: root, rect: n.rect, baseY: baseY + Float(plotH), style: style) }
 
             case .building:
                 let h = CGFloat(max(0.6, n.height))
@@ -41,7 +59,7 @@ enum CityScene {
                                  length: max(0.4, l - inset), chamferRadius: 0)
                 let mat = SCNMaterial()
                 mat.diffuse.contents = buildingColor(n)
-                mat.emission.contents = n.isRecent ? glowColor(n) : emissionColor(n)
+                mat.emission.contents = n.isRecent ? glowColor(n, style) : emissionColor(n, style)
                 box.materials = [mat]
                 let node = SCNNode(geometry: box)
                 node.position = SCNVector3(cx, baseY + 0.6 + Float(h) / 2, cz)
@@ -52,9 +70,9 @@ enum CityScene {
             }
         }
 
-        addLighting(to: root)
+        addLighting(to: root, style: style)
         addCamera(to: root, side: Float(side))
-        scene.background.contents = NSColor(calibratedRed: 0.05, green: 0.06, blue: 0.09, alpha: 1)
+        scene.background.contents = style.background
         return scene
     }
 
@@ -66,7 +84,8 @@ enum CityScene {
                 blue: CGFloat(v & 0xFF) / 255, alpha: 1)
     }
 
-    /// Curated palette for file "buildings" (picked by extension) — vivid but cohesive.
+    /// Curated palette for file "buildings" (picked by extension) — vivid but cohesive,
+    /// and legible against both a dark and a light ground.
     private static let palette: [NSColor] = [
         hex(0x4C9AFF), hex(0x2BD9C8), hex(0x9F7AEA), hex(0xF6AD55),
         hex(0xF56565), hex(0x48BB78), hex(0xED64A6), hex(0x38B2AC),
@@ -85,29 +104,39 @@ enum CityScene {
         }
     }
 
-    private static func glowColor(_ n: CityNode) -> NSColor {
-        buildingColor(n).blended(withFraction: 0.55, of: .white) ?? .white
+    /// "Newest" glow. Emission is additive, so keep it strong at night and gentle by day so
+    /// buildings don't wash out.
+    private static func glowColor(_ n: CityNode, _ style: Style) -> NSColor {
+        let frac: CGFloat = style.dark ? 0.55 : 0.25
+        return buildingColor(n).blended(withFraction: frac, of: .white) ?? .white
     }
 
-    /// Subtle self-illumination so buildings read as a lit night city.
-    private static func emissionColor(_ n: CityNode) -> NSColor {
-        buildingColor(n).blended(withFraction: 0.8, of: .black) ?? .black
+    /// Self-illumination so buildings read as a lit night city. In daylight, buildings are
+    /// lit by the scene lights instead, so ordinary buildings don't self-glow.
+    private static func emissionColor(_ n: CityNode, _ style: Style) -> NSColor {
+        style.dark ? (buildingColor(n).blended(withFraction: 0.8, of: .black) ?? .black) : .black
     }
 
-    private static func plotColor(_ n: CityNode) -> NSColor {
+    private static func plotColor(_ n: CityNode, _ style: Style) -> NSColor {
         if n.kind == .facility {
-            return hex(0x7C5CD6)   // violet plot for repos
+            return style.dark ? hex(0x7C5CD6) : hex(0x8E74E0)   // violet plot for repos
         }
-        // Cool slate districts, lightening a touch with depth.
-        let base = 0.17 + Double(n.depth % 3) * 0.05
-        return NSColor(calibratedRed: base * 0.9, green: base, blue: base * 1.25, alpha: 1)
+        // Cool slate districts, lightening a touch with depth — dark slate at night, pale by day.
+        if style.dark {
+            let base = 0.17 + Double(n.depth % 3) * 0.05
+            return NSColor(calibratedRed: base * 0.9, green: base, blue: base * 1.25, alpha: 1)
+        } else {
+            let base = 0.80 - Double(n.depth % 3) * 0.05
+            return NSColor(calibratedRed: base * 0.96, green: base, blue: min(1, base * 1.06), alpha: 1)
+        }
     }
 
     // MARK: - Facility walls + beacon
 
-    private static func addWalls(to root: SCNNode, rect: CGRect, baseY: Float) {
+    private static func addWalls(to root: SCNNode, rect: CGRect, baseY: Float, style: Style) {
         let t: CGFloat = 0.7, hWall: CGFloat = 3
-        let color = NSColor(calibratedHue: 0.75, saturation: 0.5, brightness: 0.7, alpha: 1)
+        let color = NSColor(calibratedHue: 0.75, saturation: 0.5,
+                            brightness: style.dark ? 0.7 : 0.58, alpha: 1)
         func wall(_ w: CGFloat, _ l: CGFloat, _ x: Float, _ z: Float) {
             let box = SCNBox(width: w, height: hWall, length: l, chamferRadius: 0)
             box.firstMaterial?.diffuse.contents = color
@@ -123,9 +152,7 @@ enum CityScene {
         wall(t, rect.height, maxX, Float(rect.midY))
     }
 
-    /// A billboarded name tag above a node. Carries the node's path in `name` so a click
-    /// on the label selects the same node. Kept to the larger nodes (and capped) to avoid
-    /// clutter and geometry cost.
+    /// A glowing beacon over the single most-recently-modified node.
     private static func addBeacon(to root: SCNNode, x: Float, y: Float, z: Float) {
         let sphere = SCNSphere(radius: 1.6)
         let mat = SCNMaterial()
@@ -145,18 +172,19 @@ enum CityScene {
 
     // MARK: - Lighting + camera
 
-    private static func addLighting(to root: SCNNode) {
+    private static func addLighting(to root: SCNNode, style: Style) {
         let ambient = SCNNode(); ambient.light = SCNLight()
         ambient.light!.type = .ambient
-        ambient.light!.intensity = 550
-        ambient.light!.color = NSColor(calibratedRed: 0.62, green: 0.66, blue: 0.78, alpha: 1)  // cool fill
+        ambient.light!.intensity = style.ambientIntensity
+        ambient.light!.color = style.ambientColor
         root.addChildNode(ambient)
 
         let dir = SCNNode(); dir.light = SCNLight()
         dir.light!.type = .directional
-        dir.light!.intensity = 1100
+        dir.light!.intensity = style.keyIntensity
         dir.light!.color = NSColor(calibratedRed: 1.0, green: 0.96, blue: 0.9, alpha: 1)          // warm key
         dir.light!.castsShadow = true
+        dir.light!.shadowColor = NSColor(white: 0, alpha: style.dark ? 0.5 : 0.28)                // softer shadows by day
         dir.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 4, 0)
         root.addChildNode(dir)
     }
