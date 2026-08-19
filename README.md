@@ -74,3 +74,7 @@ scanners make in exchange for not re-walking the whole tree every time.
 ## Safety notes
 
 **Move to Trash** is reversible — items go to the Finder Trash and can be restored. **Delete Permanently** (`rm -rf`) does **not** use the Trash and cannot be undone. Either way, the confirmation dialog always names the exact path and its size before anything is removed.
+
+## License
+
+[MIT](LICENSE) © nabaruns
