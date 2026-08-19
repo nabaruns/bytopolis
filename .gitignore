@@ -1,18 +1,7 @@
-# macOS
-.DS_Store
-
-# Xcode
+# Xcode / build output
 build/
+dist/
 DerivedData/
 *.xcuserstate
-*.xcuserdatad/
 xcuserdata/
-*.moved-aside
-*.hmap
-*.ipa
-*.dSYM.zip
-*.dSYM
-
-# Swift Package Manager (in case you also build with SPM)
-.build/
-.swiftpm/
+.DS_Store

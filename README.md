@@ -40,6 +40,24 @@ du -h -d1 ~/some/folder
 - **3D city ("software city"):** the **City** view mode renders the folder as an explorable 3D city (SceneKit) — directories are districts, files are buildings whose height ∝ size, colored by reclaimability (files tinted by type); the **most-recently-modified** items glow with a beacon over the newest; **git repos become walled "facilities"**. Orbit/zoom with the mouse; a left-side **"This level"** list names the current neighborhoods (click to select); click any node for details, Open, or Reveal.
 - **AI workers in a repo facility:** select a repo facility → **Start worker** → pick an agent (**Claude Code** / **Codex**, only those actually installed are offered), a **mode** (*Plan* = read-only, or *Allow edits*), and a task. It spawns the agent headlessly (`claude -p … --output-format stream-json` / `codex exec …`) in the repo, streams the output live into a panel, drops a bobbing **avatar** over that facility, and — when done — summarizes the **git changes** it made. Stop any time. Nothing runs without you starting it, and edits are surfaced through git so you review before committing.
 
+## Install
+
+Grab the latest **`Bytopolis-<version>.dmg`** from the [Releases](https://github.com/nabaruns/bytopolis/releases) page, open it, and drag **Bytopolis** into **Applications**.
+
+The build is ad-hoc signed (not notarized), so on first launch macOS Gatekeeper will warn it's from an unidentified developer. Either **right-click the app → Open** and confirm, or run:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Bytopolis.app
+```
+
+## Build a DMG yourself
+
+```sh
+./scripts/make-dmg.sh            # -> dist/Bytopolis-<version>.dmg
+```
+
+Builds the **Release** configuration and packages the app into a drag-to-install disk image. For a signed build, set `CODE_SIGN_IDENTITY="Developer ID Application: …"` first. Tagging a commit `vX.Y.Z` and pushing it runs `.github/workflows/release.yml`, which builds the DMG on CI and attaches it to a GitHub Release.
+
 ## Requirements
 
 - macOS 14 or later
