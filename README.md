@@ -8,6 +8,12 @@ du -h -d1 ~/some/folder
 
 …and to **permanently delete** a folder (`rm -rf`) right from the results, with a confirmation.
 
+## Demo
+
+[![Watch the Bytopolis demo](https://img.youtube.com/vi/zf1VLZZdxAM/maxresdefault.jpg)](https://youtu.be/zf1VLZZdxAM)
+
+▶️ **[Watch the 2-minute demo on YouTube](https://youtu.be/zf1VLZZdxAM)**
+
 ## What it does
 
 - Pick a folder or file (or type/paste a path).
